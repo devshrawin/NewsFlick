@@ -1,51 +1,51 @@
 # Feed check
 
-Run: 2026-08-03 05:57 UTC
+Run: 2026-08-03 06:21 UTC
 
 - **11 / 21 feeds usable**
-- 1074 items visible right now across live feeds
+- 1072 items visible right now across live feeds
 - 10 of 11 live feeds are teaser-only (<400 chars) -> need article extraction
 
 Legend: OK / FUTURE (publisher clock wrong) / STALE (>48h) / NO DATES / DEAD
 
 ## OK (11)
 
-**Deccan Chronicle** — 428 items, newest 0.1h ago, median body 143 chars, teaser, redirected -> https://www.deccanchronicle.com/feeds.xml
+**Deccan Chronicle** — 427 items, newest 0.1h ago, median body 144 chars, teaser, redirected -> https://www.deccanchronicle.com/feeds.xml
 `https://www.deccanchronicle.com/rss_feed/`
 
-**Economic Times** — 50 items, newest 0.5h ago, median body 0 chars, teaser
+**Economic Times** — 50 items, newest 0.7h ago, median body 0 chars, teaser
 `https://economictimes.indiatimes.com/rssfeedstopstories.cms`
 
-**Free Press Journal** — 56 items, newest 0.1h ago, median body 2445 chars, FULL TEXT
+**Free Press Journal** — 56 items, newest 0.5h ago, median body 2445 chars, FULL TEXT
 `https://www.freepressjournal.in/stories.rss`
 
-**Hindustan Times** — 100 items, newest 0.0h ago, median body 141 chars, teaser
+**Hindustan Times** — 100 items, newest 0.4h ago, median body 141 chars, teaser
 `https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml`
 
-**India Today** — 20 items, newest 0.1h ago, median body 76 chars, teaser
+**India Today** — 20 items, newest 0.5h ago, median body 77 chars, teaser
 `https://www.indiatoday.in/rss/1206578`
 
-**Livemint** — 35 items, newest 0.3h ago, median body 201 chars, teaser
+**Livemint** — 35 items, newest 0.7h ago, median body 201 chars, teaser
 `https://www.livemint.com/rss/news`
 
-**NDTV** — 20 items, newest 0.1h ago, median body 144 chars, teaser
+**NDTV** — 20 items, newest 0.4h ago, median body 144 chars, teaser
 `https://feeds.feedburner.com/ndtvnews-india-news`
 
-**News18** — 200 items, newest 0.0h ago, median body 161 chars, teaser, redirected -> https://www.news18.com/commonfeeds/v1/eng/rss/india.xml
+**News18** — 200 items, newest 0.0h ago, median body 160 chars, teaser, redirected -> https://www.news18.com/commonfeeds/v1/eng/rss/india.xml
 `https://www.news18.com/rss/india.xml`
 
-**The Hindu** — 60 items, newest 0.1h ago, median body 133 chars, teaser
+**The Hindu** — 60 items, newest 0.1h ago, median body 145 chars, teaser
 `https://www.thehindu.com/news/national/feeder/default.rss`
 
-**The Hindu (Top)** — 60 items, newest 0.1h ago, median body 141 chars, teaser
+**The Hindu (Top)** — 60 items, newest 0.1h ago, median body 140 chars, teaser
 `https://www.thehindu.com/feeder/default.rss`
 
-**Times of India** — 45 items, newest 0.3h ago, median body 391 chars, teaser
+**Times of India** — 44 items, newest 0.7h ago, median body 391 chars, teaser
 `https://timesofindia.indiatimes.com/rssfeedstopstories.cms`
 
 ## STALE (1)
 
-**Moneycontrol** — 15 items, newest 19965.8h ago, median body 161 chars, teaser
+**Moneycontrol** — 15 items, newest 19966.2h ago, median body 161 chars, teaser
 `https://www.moneycontrol.com/rss/latestnews.xml`
 
 ## DEAD (9)

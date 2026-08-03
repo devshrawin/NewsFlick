@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-08-03T05:57:47.549462+00:00",
+  "checked_at": "2026-08-03T06:21:06.753248+00:00",
   "feeds": [
     {
       "name": "The Hindu",
@@ -8,7 +8,7 @@
       "note": "",
       "entries": 60,
       "age_hours": 0.1,
-      "median_chars": 133,
+      "median_chars": 145,
       "dated": 60,
       "verdict": "OK"
     },
@@ -19,7 +19,7 @@
       "note": "",
       "entries": 60,
       "age_hours": 0.1,
-      "median_chars": 141,
+      "median_chars": 140,
       "dated": 60,
       "verdict": "OK"
     },
@@ -40,7 +40,7 @@
       "ok": true,
       "note": "",
       "entries": 100,
-      "age_hours": 0.0,
+      "age_hours": 0.4,
       "median_chars": 141,
       "dated": 100,
       "verdict": "OK"
@@ -50,10 +50,10 @@
       "url": "https://timesofindia.indiatimes.com/rssfeedstopstories.cms",
       "ok": true,
       "note": "",
-      "entries": 45,
-      "age_hours": 0.3,
+      "entries": 44,
+      "age_hours": 0.7,
       "median_chars": 391,
-      "dated": 45,
+      "dated": 44,
       "verdict": "OK"
     },
     {
@@ -62,7 +62,7 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 0.1,
+      "age_hours": 0.4,
       "median_chars": 144,
       "dated": 20,
       "verdict": "OK"
@@ -74,7 +74,7 @@
       "note": "redirected -> https://www.news18.com/commonfeeds/v1/eng/rss/india.xml",
       "entries": 200,
       "age_hours": 0.0,
-      "median_chars": 161,
+      "median_chars": 160,
       "dated": 200,
       "verdict": "OK"
     },
@@ -84,8 +84,8 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 0.1,
-      "median_chars": 76,
+      "age_hours": 0.5,
+      "median_chars": 77,
       "dated": 20,
       "verdict": "OK"
     },
@@ -172,7 +172,7 @@
       "ok": true,
       "note": "",
       "entries": 35,
-      "age_hours": 0.3,
+      "age_hours": 0.7,
       "median_chars": 201,
       "dated": 35,
       "verdict": "OK"
@@ -194,7 +194,7 @@
       "ok": true,
       "note": "",
       "entries": 50,
-      "age_hours": 0.5,
+      "age_hours": 0.7,
       "median_chars": 0,
       "dated": 50,
       "verdict": "OK"
@@ -205,7 +205,7 @@
       "ok": true,
       "note": "",
       "entries": 15,
-      "age_hours": 19965.8,
+      "age_hours": 19966.2,
       "median_chars": 161,
       "dated": 15,
       "verdict": "STALE"
@@ -216,7 +216,7 @@
       "ok": true,
       "note": "",
       "entries": 56,
-      "age_hours": 0.1,
+      "age_hours": 0.5,
       "median_chars": 2445,
       "dated": 56,
       "verdict": "OK"
@@ -226,10 +226,10 @@
       "url": "https://www.deccanchronicle.com/rss_feed/",
       "ok": true,
       "note": "redirected -> https://www.deccanchronicle.com/feeds.xml",
-      "entries": 428,
+      "entries": 427,
       "age_hours": 0.1,
-      "median_chars": 143,
-      "dated": 428,
+      "median_chars": 144,
+      "dated": 427,
       "verdict": "OK"
     }
   ]
