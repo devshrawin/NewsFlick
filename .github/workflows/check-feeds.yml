@@ -23,7 +23,11 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Budget: 32 feeds x (2 UA attempts x 12s TIMEOUT + 2s backoff + 1s
+    # politeness) ~= 24 min worst case, so 25 could be killed mid-run on a
+    # bad-network hour -- and a kill means no report and no deploy. Re-do this
+    # arithmetic if you add feeds or raise TIMEOUT.
+    timeout-minutes: 40
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -41,15 +45,10 @@ jobs:
       - name: Check feeds
         run: python pipeline/check_feeds.py
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: reports
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
-
+      # Commit BEFORE deploying. The other order meant a failed push (protected
+      # branch, or a rebase conflict on reports/) still shipped to Pages, so
+      # the served page permanently disagreed with the committed one and the
+      # job went red with no way to tell which copy was live.
       - name: Commit report
         run: |
           set -euo pipefail
@@ -71,6 +70,15 @@ jobs:
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
           echo "Report pushed."
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: reports
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
 
       - name: Summary
         if: always()

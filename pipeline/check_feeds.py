@@ -60,6 +60,12 @@ MAX_BYTES = 8 * 1024 * 1024   # refuse to buffer a runaway feed
 DEDUPE_TITLE_THRESHOLD = 0.78
 DEDUPE_WINDOW_HOURS = 20   # only merge articles whose published times are this close
 
+# 32 feeds produce ~1900 cards an hour, which embedded as JSON made index.html
+# 1.3 MB -- a slow load on the phone this is meant to be read on, for a deck
+# nobody swipes a tenth of. Newest N survive; the count dropped is printed, not
+# swallowed. The full set is still in feed_check.json.
+DECK_LIMIT = 400
+
 
 def strip_html(text: str) -> str:
     """Tags out, entities decoded. Entity decoding matters: without it
@@ -149,7 +155,16 @@ def entry_link(entry) -> str:
 
 
 IMG_EXT_RE = re.compile(r"\.(?:jpe?g|png|webp|gif)(?:\?|$)", re.IGNORECASE)
-IMG_TAG_RE = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
+IMG_TAG_RE = re.compile(r"<img[^>]*>", re.IGNORECASE)
+IMG_SRC_RE = re.compile(r'src=["\']([^"\']+)["\']', re.IGNORECASE)
+# A 1x1 tracking pixel loads fine, so the <img onerror> fallback never fires --
+# object-fit: cover then stretches it into a solid colour block across the top
+# of the card. Feedburner/analytics feeds routinely put one first in the body.
+IMG_TINY_RE = re.compile(r'\b(?:width|height)\s*=\s*["\']?\s*([0-9]{1,2})\b', re.IGNORECASE)
+IMG_PIXEL_HOST_RE = re.compile(
+    r"(?:feedburner|feedsportal|doubleclick|scorecardresearch|/~r/|/~ff/|pixel|/1x1|blank\.gif)",
+    re.IGNORECASE,
+)
 
 # Keyword-based topic tagging -- a stopgap, not real classification. It's a
 # plain word-hit count per topic, so it will misfile anything that doesn't
@@ -179,7 +194,7 @@ TOPIC_KEYWORDS = {
         "ott release", "celebrity", "music album", "web series", "trailer",
     ],
     "Technology": [
-        "artificial intelligence", " ai ", "smartphone", "app launch",
+        "artificial intelligence", "ai", "smartphone", "app launch",
         "software", "startup funding", "google", "apple", "meta platforms",
         "chip", "data breach", "cybersecurity",
     ],
@@ -190,16 +205,26 @@ TOPIC_KEYWORDS = {
     ],
     "Health": [
         "covid", "health ministry", "hospital", "vaccine", "disease",
-        "doctor", "outbreak", "who ", "medical",
+        "doctor", "outbreak", "medical",
     ],
+}
+
+# Whole-word matching, built once. Substring matching filed "The MLA who quit
+# the party" under Health (the relative pronoun "who" hit the WHO keyword) and
+# would equally have matched "ai" inside "said" or "chip" inside "chipped".
+# \b handles the punctuation cases (" AI, model") that a space-padded
+# substring check missed.
+TOPIC_PATTERNS = {
+    topic: [re.compile(r"\b" + re.escape(kw) + r"\b", re.IGNORECASE) for kw in kws]
+    for topic, kws in TOPIC_KEYWORDS.items()
 }
 
 
 def classify_topic(title: str, snippet: str) -> str:
-    text = f" {title.lower()} {snippet.lower()} "
+    text = f"{title} {snippet}"
     best_topic, best_hits = "General", 0
-    for topic, keywords in TOPIC_KEYWORDS.items():
-        hits = sum(1 for kw in keywords if kw in text)
+    for topic, patterns in TOPIC_PATTERNS.items():
+        hits = sum(1 for p in patterns if p.search(text))
         if hits > best_hits:
             best_topic, best_hits = topic, hits
     return best_topic
@@ -224,9 +249,18 @@ def entry_image(entry):
         if c.get("value"):
             candidates.append(c["value"])
     for blob in candidates:
-        m = IMG_TAG_RE.search(blob or "")
-        if m and m.group(1).startswith(("http://", "https://")):
-            return m.group(1)
+        for tag in IMG_TAG_RE.findall(blob or ""):
+            src = IMG_SRC_RE.search(tag)
+            if not src:
+                continue
+            url = src.group(1)
+            if not url.startswith(("http://", "https://")):
+                continue
+            # Skip the tracking pixels these feeds open with, by declared size
+            # and by the hosts/paths that serve them.
+            if IMG_TINY_RE.search(tag) or IMG_PIXEL_HOST_RE.search(url):
+                continue
+            return url
     return None
 
 
@@ -305,7 +339,7 @@ def load_feeds():
         raise SystemExit(f"ERROR: {FEEDS_FILE.name} not found at repo root. "
                          "Did the file get committed to the wrong path?")
     try:
-        data = yaml.safe_load(FEEDS_FILE.read_text())
+        data = yaml.safe_load(FEEDS_FILE.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
         mark = getattr(exc, "problem_mark", None)
         where = f" near line {mark.line + 1}" if mark else ""
@@ -354,7 +388,7 @@ def dedupe_articles(articles: list) -> list:
     """Collapse near-duplicate headlines (typically the same wire story --
     PTI/ANI/Reuters -- run by multiple publishers) into one card, keeping the
     best-looking representative and listing who else carried it."""
-    clusters = []   # each: {"rep": article, "norm": str, "also_from": [source, ...]}
+    clusters = []   # each: {"anchor": str, "at": datetime|None, "rep": article, "members": [source]}
 
     def better(a, b):
         """True if `a` should represent the cluster over current rep `b`."""
@@ -370,38 +404,44 @@ def dedupe_articles(articles: list) -> list:
         norm = normalize_title(a["title"])
         match = None
         for c in clusters:
-            if a["published"] and c["rep"]["published"]:
-                gap_hours = abs((a["published"] - c["rep"]["published"]).total_seconds()) / 3600
+            if a["published"] and c["at"]:
+                gap_hours = abs((a["published"] - c["at"]).total_seconds()) / 3600
                 if gap_hours > DEDUPE_WINDOW_HOURS:
                     continue
-            if difflib.SequenceMatcher(None, norm, c["norm"]).ratio() >= DEDUPE_TITLE_THRESHOLD:
+            if difflib.SequenceMatcher(None, norm, c["anchor"]).ratio() >= DEDUPE_TITLE_THRESHOLD:
                 match = c
                 break
         if match is None:
-            clusters.append({"rep": a, "norm": norm, "also_from": []})
+            clusters.append({"anchor": norm, "at": a["published"], "rep": a, "members": [a["source"]]})
             continue
-        old_rep = match["rep"]
-        if better(a, old_rep):
-            match["rep"], match["norm"] = a, norm
-            demoted_source = old_rep["source"]
-        else:
-            demoted_source = a["source"]
-        if demoted_source != match["rep"]["source"] and demoted_source not in match["also_from"]:
-            match["also_from"].append(demoted_source)
+        # `anchor`/`at` deliberately stay pinned to the first article that
+        # opened the cluster even when a better-looking rep takes over. Moving
+        # them with the rep made membership depend on arrival order: a later
+        # headline similar to the original but not to the new rep would start
+        # a second card, and one similar only to the new rep would get pulled
+        # in transitively -- silently dropping a distinct story.
+        if a["source"] not in match["members"]:
+            match["members"].append(a["source"])
+        if better(a, match["rep"]):
+            match["rep"] = a
 
     out = []
     for c in clusters:
         rep = dict(c["rep"])
-        rep["also_from"] = c["also_from"]
+        rep["also_from"] = [s for s in c["members"] if s != rep["source"]]
         out.append(rep)
     return out
 
 
-def render_html(articles: list, live_count: int, total_count: int) -> str:
+def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     """Self-contained swipeable article deck -- open reports/index.html (or
     the Pages URL) instead of poking at news.db to see what the feeds have.
-    Data is embedded as JSON; the deck, filtering and the "up next" queue
-    are all built client-side from it."""
+
+    Everything (layout, filtering, the deck, the up-next queue) is built
+    client-side from an embedded JSON payload, so all interpolated text has
+    to go through the page's esc() and every URL through safeUrl(). See the
+    audit note in the README before touching that.
+    """
     now = datetime.now(timezone.utc)
 
     def sort_key(a):
@@ -409,7 +449,13 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
 
     payload = [
         {
-            "id": hashlib.sha1(a["link"].encode()).hexdigest()[:10],
+            # Falls back to source+title because entry_link() returns "" for
+            # entries with no <link>, and every one of those would otherwise
+            # hash to the same id -- collapsing them in the share deep-link,
+            # the saved list, and the click handler's all.find().
+            "id": hashlib.sha1(
+                (a["link"] or f"{a['source']}\x00{a['title']}").encode("utf-8")
+            ).hexdigest()[:10],
             "source": a["source"],
             "title": a["title"],
             "link": a["link"],
@@ -424,492 +470,878 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
         for a in sorted(articles, key=sort_key, reverse=True)
     ]
     # '</script>' inside a title/snippet would otherwise close the tag early.
-    data_json = json.dumps(payload).replace("</", "<\\/")
+    data_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
 
     return f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="A swipeable digest of Indian news, rebuilt every hour.">
 <title>newsdigest</title>
 <style>
   :root {{
-    color-scheme: light dark;
-    --bg: #f2f3f7; --surface: #ffffff; --ink: #14141a; --sub: #6b7280;
-    --border: rgba(20,20,30,.07); --shadow: 0 1px 2px rgba(20,20,30,.04), 0 8px 20px -12px rgba(20,20,30,.12);
-    --shadow-lg: 0 10px 20px -8px rgba(20,20,30,.18), 0 30px 60px -30px rgba(20,20,30,.25);
-    --accent: #6d5ef0; --header-bg: rgba(242,243,247,.75);
+    --bg: #f6f7fb;
+    --bg-2: #eceef6;
+    --surface: #ffffff;
+    --surface-2: #fbfbfe;
+    --ink: #10111a;
+    --sub: #6a7080;
+    --line: rgba(16,17,26,.08);
+    --line-2: rgba(16,17,26,.14);
+    --accent: #5b5bd6;
+    --accent-2: #d6409f;
+    --gold: #e8a33d;
+    --shadow-sm: 0 1px 2px rgba(16,17,26,.05);
+    --shadow-md: 0 2px 6px rgba(16,17,26,.06), 0 12px 24px -14px rgba(16,17,26,.14);
+    --shadow-xl: 0 8px 20px -10px rgba(16,17,26,.22), 0 32px 64px -32px rgba(16,17,26,.30);
+    --glass: rgba(246,247,251,.72);
+    --radius: 22px;
+    /* Overshoot for anything that should feel physical; flat-out for the rest. */
+    --spring: cubic-bezier(.34, 1.4, .64, 1);
+    --out: cubic-bezier(.22, 1, .36, 1);
   }}
   @media (prefers-color-scheme: dark) {{
-    :root {{ --bg: #0b0c0f; --surface: #1a1b1f; --ink: #f0f0f2; --sub: #9199a3;
-             --border: rgba(255,255,255,.08); --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 20px -12px rgba(0,0,0,.5);
-             --shadow-lg: 0 10px 20px -8px rgba(0,0,0,.5), 0 30px 60px -30px rgba(0,0,0,.7);
-             --accent: #8b7bff; --header-bg: rgba(11,12,15,.75); }}
+    :root {{
+      --bg: #08090d;
+      --bg-2: #0d0f16;
+      --surface: #16181f;
+      --surface-2: #1b1e27;
+      --ink: #edeef2;
+      --sub: #8f96a6;
+      --line: rgba(255,255,255,.08);
+      --line-2: rgba(255,255,255,.14);
+      --accent: #8b8bf0;
+      --accent-2: #f472b6;
+      --gold: #f0b95c;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+      --shadow-md: 0 2px 6px rgba(0,0,0,.4), 0 12px 24px -14px rgba(0,0,0,.6);
+      --shadow-xl: 0 8px 20px -10px rgba(0,0,0,.6), 0 32px 64px -32px rgba(0,0,0,.8);
+      --glass: rgba(8,9,13,.72);
+    }}
   }}
+
   * {{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }}
+  html, body {{ height: 100%; }}
   body {{
-    font-family: -apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: var(--ink);
-    margin: 0; min-height: 100dvh; line-height: 1.45;
+    margin: 0;
+    font-family: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI Variable Text",
+                 "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
   }}
+
+  /* Slow-drifting colour wash. Fixed + behind everything, never scrolls. */
+  .mesh {{
+    position: fixed; inset: -20% -10% auto -10%; height: 70vh; z-index: 0;
+    pointer-events: none; opacity: .5; filter: blur(60px);
+    background:
+      radial-gradient(38% 44% at 18% 22%, color-mix(in oklab, var(--accent) 42%, transparent), transparent 70%),
+      radial-gradient(34% 40% at 82% 12%, color-mix(in oklab, var(--accent-2) 34%, transparent), transparent 70%),
+      radial-gradient(40% 38% at 52% 46%, color-mix(in oklab, var(--gold) 22%, transparent), transparent 72%);
+    animation: drift 26s var(--out) infinite alternate;
+  }}
+  @keyframes drift {{
+    from {{ transform: translate3d(-3%, -2%, 0) scale(1); }}
+    to   {{ transform: translate3d(4%, 3%, 0) scale(1.12); }}
+  }}
+
   header {{
     position: sticky; top: 0; z-index: 20;
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    background: var(--header-bg); border-bottom: 1px solid var(--border);
-    padding: 1rem 1.1rem 0.8rem;
+    background: var(--glass);
+    backdrop-filter: saturate(1.6) blur(18px);
+    -webkit-backdrop-filter: saturate(1.6) blur(18px);
+    border-bottom: 1px solid var(--line);
+    padding: .85rem 1rem .55rem;
   }}
-  .titlebar {{ display: flex; align-items: baseline; justify-content: space-between; max-width: 1040px; margin: 0 auto; }}
-  header h1 {{
-    margin: 0; font-size: 1.3rem; font-weight: 800; letter-spacing: -0.03em;
-    background: linear-gradient(135deg, var(--accent), #ff6fb0);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
+  .bar {{
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    max-width: 1100px; margin: 0 auto;
   }}
-  header .stats {{ color: var(--sub); font-size: 0.76rem; font-weight: 500; }}
-  .freshness {{
-    display: flex; align-items: center; justify-content: space-between;
-    max-width: 1040px; margin: 0.5rem auto 0; font-size: 0.76rem; color: var(--sub);
+  .brand {{
+    display: flex; align-items: center; gap: .5rem;
+    font-size: 1.06rem; font-weight: 750; letter-spacing: -.028em;
   }}
-  .refresh-btn {{
-    border: 1px solid var(--border); background: var(--surface); color: var(--sub);
-    padding: 0.25rem 0.65rem; border-radius: 999px; font-size: 0.74rem; font-weight: 600;
-    cursor: pointer; transition: transform .12s ease;
+  .brand .dot {{
+    width: .62rem; height: .62rem; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 60%, transparent);
+    animation: pulse 3.4s var(--out) infinite;
   }}
-  .refresh-btn:active {{ transform: scale(0.94); }}
-  .filters {{
-    display: flex; gap: 0.4rem; overflow-x: auto; margin: 0.75rem auto 0;
-    max-width: 1040px; padding-bottom: 0.15rem; scrollbar-width: none;
+  @keyframes pulse {{
+    0%, 70%, 100% {{ box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 55%, transparent); }}
+    35% {{ box-shadow: 0 0 0 .42rem transparent; }}
   }}
-  .filters::-webkit-scrollbar {{ display: none; }}
-  .filters-sub {{ margin-top: 0.45rem; }}
-  .filter {{
-    flex: none; border: 1px solid var(--border); background: var(--surface);
-    color: var(--sub); padding: 0.35rem 0.75rem; border-radius: 999px;
-    font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap;
-    transition: transform .15s ease, background .15s ease, color .15s ease;
+  .head-right {{ display: flex; align-items: center; gap: .55rem; }}
+  .fresh {{ font-size: .74rem; color: var(--sub); font-variant-numeric: tabular-nums; white-space: nowrap; }}
+  /* Feed count is nice-to-know, not worth crowding a phone header. */
+  @media (max-width: 520px) {{ .fresh.sep, .fresh[title] {{ display: none; }} }}
+  .ghost {{
+    display: inline-flex; align-items: center; gap: .34rem;
+    border: 1px solid var(--line-2); background: var(--surface); color: var(--sub);
+    padding: .32rem .62rem; border-radius: 999px;
+    font: inherit; font-size: .74rem; font-weight: 650; cursor: pointer;
+    transition: transform .18s var(--spring), color .18s, border-color .18s, background .18s;
   }}
-  .filter .count {{ opacity: 0.6; font-weight: 500; }}
-  .filter:active {{ transform: scale(0.95); }}
-  .filter.active {{ background: hsl(var(--hue, 250) 70% 50%); color: #fff; border-color: transparent; }}
-  .filter[data-filter="all"].active {{ background: var(--accent); }}
-  .filter[data-filter="__saved__"].active {{ background: #f5a623; }}
-  .toast {{
-    position: fixed; bottom: 1.3rem; left: 50%; transform: translateX(-50%) translateY(20px);
-    background: var(--ink); color: var(--bg); padding: 0.6rem 1.1rem; border-radius: 999px;
-    font-size: 0.85rem; opacity: 0; pointer-events: none; z-index: 50;
-    transition: opacity .2s ease, transform .2s ease;
+  .ghost:hover {{ color: var(--ink); border-color: var(--accent); }}
+  .ghost:active {{ transform: scale(.93); }}
+  .ghost svg {{ width: .82rem; height: .82rem; }}
+  .ghost.spin svg {{ animation: spin .7s var(--out); }}
+  @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
+
+  .chips {{
+    display: flex; gap: .38rem; overflow-x: auto; scrollbar-width: none;
+    max-width: 1100px; margin: .6rem auto 0; padding-bottom: .18rem;
+    -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity;
   }}
-  .toast.show {{ opacity: 1; transform: translateX(-50%) translateY(0); }}
+  .chips::-webkit-scrollbar {{ display: none; }}
+  .chips-sub {{ margin-top: .34rem; }}
+  .chip {{
+    flex: none; scroll-snap-align: start;
+    border: 1px solid var(--line-2); background: var(--surface); color: var(--sub);
+    padding: .32rem .68rem; border-radius: 999px;
+    font: inherit; font-size: .755rem; font-weight: 650; white-space: nowrap; cursor: pointer;
+    transition: transform .2s var(--spring), background .2s var(--out), color .2s, border-color .2s;
+    animation: chipIn .4s var(--out) both;
+    animation-delay: calc(var(--i, 0) * 22ms);
+  }}
+  @keyframes chipIn {{
+    from {{ opacity: 0; transform: translateY(6px) scale(.94); }}
+    to   {{ opacity: 1; transform: none; }}
+  }}
+  .chip .n {{ opacity: .55; font-weight: 550; margin-left: .1rem; }}
+  .chip:hover {{ color: var(--ink); border-color: var(--line-2); }}
+  .chip:active {{ transform: scale(.94); }}
+  .chip.on {{
+    color: #fff; border-color: transparent;
+    background: linear-gradient(135deg,
+      hsl(var(--hue, 248) 62% 54%), hsl(calc(var(--hue, 248) + 26) 66% 48%));
+    box-shadow: 0 2px 10px -4px hsl(var(--hue, 248) 62% 54% / .7);
+  }}
+  .chip.on .n {{ opacity: .8; }}
+  .chip[data-f="__saved__"].on {{
+    background: linear-gradient(135deg, var(--gold), #d98324);
+    box-shadow: 0 2px 10px -4px color-mix(in oklab, var(--gold) 70%, transparent);
+  }}
+
+  .rail {{ max-width: 1100px; margin: .6rem auto 0; height: 2px; background: var(--line); border-radius: 2px; }}
+  .rail i {{
+    display: block; height: 100%; width: 0; border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width .45s var(--out);
+  }}
 
   .layout {{
-    max-width: 1040px; margin: 0 auto; padding: 1.5rem 1rem 2.5rem;
+    position: relative; z-index: 1;
+    max-width: 1100px; margin: 0 auto; padding: 1.25rem 1rem 2.5rem;
     display: grid; grid-template-columns: 1fr; gap: 1.5rem; align-items: start;
   }}
-  .stage {{
-    position: relative; height: min(64vh, 560px);
-    display: flex; align-items: center; justify-content: center;
-  }}
-  .swipe-card {{
-    position: absolute; inset: 0; margin: auto;
-    width: min(92vw, 400px); height: 100%;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 24px; box-shadow: var(--shadow-lg); overflow: hidden;
-    display: flex; flex-direction: column;
-    cursor: grab; user-select: none; touch-action: none;
-    transition: transform .32s cubic-bezier(.2,.8,.2,1), opacity .32s ease;
-  }}
-  .swipe-card.dragging {{ transition: none; cursor: grabbing; }}
-  .swipe-card:active {{ cursor: grabbing; }}
-  .card-image {{ flex: none; height: 38%; background: var(--bg); }}
-  .card-image img {{ width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }}
-  .card-body {{
-    flex: 1; min-height: 0; display: flex; flex-direction: column;
-    padding: 1.4rem 1.4rem 1.2rem; overflow: hidden;
-  }}
-  .swipe-card .tag {{
-    display: inline-flex; align-self: flex-start; background: hsl(var(--hue) 75% 92%); color: hsl(var(--hue) 60% 28%);
-    padding: 0.3rem 0.7rem; border-radius: 999px; font-size: 0.74rem; font-weight: 700;
-    margin-right: 0.35rem;
-  }}
-  @media (prefers-color-scheme: dark) {{
-    .swipe-card .tag {{ background: hsl(var(--hue) 40% 20%); color: hsl(var(--hue) 75% 82%); }}
-  }}
-  .swipe-card .topic-tag {{ background: var(--bg); color: var(--sub); border: 1px solid var(--border); }}
-  @media (prefers-color-scheme: dark) {{ .swipe-card .topic-tag {{ background: var(--bg); color: var(--sub); }} }}
-  .swipe-card time {{ display: block; color: var(--sub); font-size: 0.78rem; margin: 0.6rem 0 0.9rem; }}
-  .swipe-card h2 {{ font-size: 1.25rem; line-height: 1.3; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 0.4rem; }}
-  .also-from {{ font-size: 0.74rem; color: var(--sub); margin: 0 0 0.7rem; }}
-  .swipe-card .snippet {{
-    margin: 0; color: var(--sub); font-size: 0.92rem; line-height: 1.5; flex: 1;
-    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
-  }}
-  .read-link {{
-    align-self: flex-start; margin-top: 0.9rem; font-size: 0.86rem; font-weight: 700;
-    color: var(--accent); text-decoration: none; touch-action: auto;
-  }}
-  .card-actions {{ position: absolute; top: 0.7rem; right: 0.7rem; z-index: 5; display: flex; gap: 0.4rem; }}
-  .icon-btn {{
-    width: 2.15rem; height: 2.15rem; border-radius: 50%; border: none; cursor: pointer;
-    background: rgba(255,255,255,.85); color: #1a1a1a; font-size: 1.05rem;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 1px 4px rgba(0,0,0,.18); touch-action: auto;
-  }}
-  @media (prefers-color-scheme: dark) {{ .icon-btn {{ background: rgba(40,41,46,.85); color: #f0f0f2; }} }}
-  .icon-btn.saved {{ color: #f5a623; }}
-  .icon-btn:active {{ transform: scale(0.9); }}
-  .read-link:hover {{ text-decoration: underline; }}
-  .end-card {{ align-items: center; justify-content: center; text-align: center; cursor: default; padding: 1.4rem; }}
-  .end-card .big {{ font-size: 2.6rem; margin-bottom: 0.4rem; }}
-  .end-card h2 {{ margin-bottom: 0.3rem; }}
 
-  .controls {{ display: flex; justify-content: center; align-items: center; gap: 1.4rem; margin-top: 1.1rem; }}
-  .ctrl-btn {{
-    width: 3.4rem; height: 3.4rem; border-radius: 50%; border: 1px solid var(--border);
-    background: var(--surface); box-shadow: var(--shadow); font-size: 1.5rem;
-    display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink);
-    transition: transform .12s ease;
+  .stage {{
+    position: relative;
+    height: clamp(420px, 62vh, 560px);
+    perspective: 1400px;
   }}
-  .ctrl-btn:active {{ transform: scale(0.92); }}
-  .counter {{ text-align: center; color: var(--sub); font-size: 0.8rem; margin-top: 0.6rem; }}
-  .kbd-hint {{ display: none; text-align: center; color: var(--sub); font-size: 0.76rem; margin-top: 0.4rem; opacity: 0.7; }}
+
+  .card {{
+    position: absolute; inset: 0; margin: auto;
+    width: min(94%, 400px); height: 100%;
+    display: flex; flex-direction: column; overflow: hidden;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow-xl);
+    transform-origin: 50% 100%;
+    will-change: transform, opacity;
+    animation: cardIn .5s var(--out) both;
+    animation-delay: calc(var(--i, 0) * 55ms);
+  }}
+  @keyframes cardIn {{
+    from {{ opacity: 0; transform: translateY(14px) scale(.96); }}
+  }}
+  .card.top {{ cursor: grab; touch-action: pan-y; }}
+  .card.top:active {{ cursor: grabbing; }}
+  .card.drag {{ transition: none !important; }}
+  .card:not(.drag) {{ transition: transform .42s var(--spring), opacity .3s var(--out), box-shadow .3s; }}
+
+  .media {{ position: relative; flex: none; height: 42%; background: var(--bg-2); overflow: hidden; }}
+  .media img {{
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    opacity: 0; transform: scale(1.06);
+    transition: opacity .55s var(--out), transform 1.1s var(--out);
+  }}
+  .media img.in {{ opacity: 1; transform: none; }}
+  /* Shimmer sits under the image and is simply covered once it paints. */
+  .media::before {{
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(100deg, var(--bg-2) 20%, var(--surface-2) 40%, var(--bg-2) 60%);
+    background-size: 220% 100%;
+    animation: shimmer 1.5s linear infinite;
+  }}
+  .media.done::before {{ display: none; }}
+  @keyframes shimmer {{ to {{ background-position: -220% 0; }} }}
+  .media .scrim {{
+    position: absolute; inset: auto 0 0 0; height: 55%;
+    background: linear-gradient(to top, var(--surface), transparent);
+    pointer-events: none;
+  }}
+
+  .body {{ flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 1.05rem 1.15rem 1.1rem; }}
+  .metarow {{ display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .55rem; }}
+  .src {{
+    display: inline-flex; align-items: center; gap: .38rem;
+    font-size: .735rem; font-weight: 700; letter-spacing: -.005em;
+    color: hsl(var(--hue) 52% 40%);
+  }}
+  @media (prefers-color-scheme: dark) {{ .src {{ color: hsl(var(--hue) 72% 74%); }} }}
+  .ava {{
+    width: 1.4rem; height: 1.4rem; border-radius: 50%; flex: none;
+    display: grid; place-items: center;
+    font-size: .58rem; font-weight: 800; letter-spacing: -.02em;
+    color: #fff;
+    background: linear-gradient(135deg, hsl(var(--hue) 62% 56%), hsl(calc(var(--hue) + 30) 62% 46%));
+  }}
+  .pill {{
+    font-size: .66rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+    color: var(--sub); background: var(--bg-2);
+    border: 1px solid var(--line); padding: .16rem .46rem; border-radius: 999px;
+  }}
+  .card h2 {{
+    margin: 0 0 .4rem; font-size: 1.19rem; line-height: 1.28;
+    font-weight: 760; letter-spacing: -.022em;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }}
+  .also {{ font-size: .72rem; color: var(--sub); margin-bottom: .45rem; }}
+  .also b {{ color: var(--ink); font-weight: 650; }}
+  .snip {{
+    margin: 0; color: var(--sub); font-size: .875rem; line-height: 1.52; flex: 1; min-height: 0;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }}
+  .foot {{
+    display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+    margin-top: .85rem; padding-top: .7rem; border-top: 1px solid var(--line);
+  }}
+  .foot time {{ font-size: .73rem; color: var(--sub); font-variant-numeric: tabular-nums; }}
+  .read {{
+    display: inline-flex; align-items: center; gap: .3rem;
+    font-size: .8rem; font-weight: 700; color: var(--accent); text-decoration: none;
+    transition: gap .2s var(--spring);
+  }}
+  .read svg {{ width: .85rem; height: .85rem; }}
+  .read:hover {{ gap: .5rem; text-decoration: underline; }}
+
+  .tools {{ position: absolute; top: .7rem; right: .7rem; display: flex; gap: .35rem; z-index: 3; }}
+  .tool {{
+    width: 2.1rem; height: 2.1rem; border-radius: 50%; display: grid; place-items: center;
+    border: 1px solid transparent; cursor: pointer; color: var(--ink);
+    background: color-mix(in oklab, var(--surface) 78%, transparent);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-sm);
+    transition: transform .2s var(--spring), color .2s, background .2s;
+  }}
+  .tool svg {{ width: 1rem; height: 1rem; }}
+  .tool:hover {{ transform: scale(1.08); }}
+  .tool:active {{ transform: scale(.88); }}
+  .tool.on {{ color: var(--gold); }}
+  .tool.on svg {{ fill: var(--gold); }}
+  .tool.pop {{ animation: pop .42s var(--spring); }}
+  @keyframes pop {{
+    0% {{ transform: scale(1); }}
+    38% {{ transform: scale(1.34) rotate(9deg); }}
+    100% {{ transform: scale(1); }}
+  }}
+
+  .end {{ align-items: center; justify-content: center; text-align: center; padding: 2rem 1.4rem; cursor: default; }}
+  .end .big {{
+    font-size: 2.4rem; line-height: 1; margin-bottom: .6rem;
+    animation: cardIn .5s var(--spring) both .1s;
+  }}
+  .end h2 {{ -webkit-line-clamp: unset; margin-bottom: .3rem; }}
+  .end p {{ color: var(--sub); font-size: .88rem; margin: 0 0 1rem; }}
+
+  .ctrls {{ display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1.15rem; }}
+  .rnd {{
+    width: 3.15rem; height: 3.15rem; border-radius: 50%; display: grid; place-items: center;
+    border: 1px solid var(--line-2); background: var(--surface); color: var(--ink);
+    box-shadow: var(--shadow-md); cursor: pointer;
+    transition: transform .22s var(--spring), border-color .2s, color .2s;
+  }}
+  .rnd svg {{ width: 1.15rem; height: 1.15rem; }}
+  .rnd:hover:not(:disabled) {{ transform: translateY(-2px) scale(1.05); border-color: var(--accent); color: var(--accent); }}
+  .rnd:active:not(:disabled) {{ transform: scale(.9); }}
+  .rnd:disabled {{ opacity: .35; cursor: default; }}
+  .count {{ text-align: center; color: var(--sub); font-size: .78rem; margin-top: .7rem; font-variant-numeric: tabular-nums; }}
+  .hint {{ display: none; text-align: center; color: var(--sub); font-size: .74rem; margin-top: .3rem; opacity: .75; }}
+  .hint kbd {{
+    font: inherit; font-size: .7rem; padding: .04rem .3rem; border-radius: 5px;
+    border: 1px solid var(--line-2); background: var(--surface);
+  }}
 
   .queue {{ display: none; }}
-  .queue h3 {{ font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--sub); margin: 0 0 0.7rem; }}
-  .queue-item {{
-    display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.55rem 0.6rem; border-radius: 12px;
-    cursor: pointer; transition: background .12s ease;
+  .queue h3 {{
+    font-size: .68rem; font-weight: 750; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--sub); margin: 0 0 .55rem;
   }}
-  .queue-item:hover {{ background: var(--surface); }}
-  .queue-item .dot {{ flex: none; width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-top: 0.45rem; background: hsl(var(--hue) 70% 50%); }}
-  .queue-item .qt {{ font-size: 0.85rem; font-weight: 600; line-height: 1.3; }}
-  .queue-item .qs {{ font-size: 0.72rem; color: var(--sub); margin-top: 0.15rem; }}
+  .qi {{
+    display: flex; gap: .6rem; align-items: flex-start; width: 100%; text-align: left;
+    padding: .55rem .6rem; border-radius: 13px; border: 1px solid transparent;
+    background: none; font: inherit; color: inherit; cursor: pointer;
+    animation: chipIn .4s var(--out) both; animation-delay: calc(var(--i, 0) * 40ms);
+    transition: background .16s, border-color .16s, transform .16s var(--out);
+  }}
+  .qi:hover {{ background: var(--surface); border-color: var(--line); transform: translateX(2px); }}
+  .qi .bar {{ flex: none; width: 3px; align-self: stretch; border-radius: 3px; background: hsl(var(--hue) 62% 56%); }}
+  .qi .t {{ font-size: .81rem; font-weight: 640; line-height: 1.34; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }}
+  .qi .s {{ font-size: .7rem; color: var(--sub); margin-top: .12rem; }}
+  .qempty {{ color: var(--sub); font-size: .8rem; }}
 
-  @media (min-width: 880px) {{
-    .layout {{ grid-template-columns: minmax(0, 1fr) 300px; gap: 2rem; }}
-    .stage {{ height: min(68vh, 600px); }}
-    .swipe-card {{ width: min(70%, 440px); }}
-    .queue {{ display: block; }}
-    .kbd-hint {{ display: block; }}
+  .toast {{
+    position: fixed; left: 50%; bottom: 1.4rem; z-index: 60;
+    transform: translate(-50%, 24px) scale(.96); opacity: 0; pointer-events: none;
+    display: flex; align-items: center; gap: .45rem;
+    padding: .6rem 1rem; border-radius: 999px;
+    background: color-mix(in oklab, var(--ink) 92%, transparent); color: var(--bg);
+    font-size: .82rem; font-weight: 600; box-shadow: var(--shadow-xl);
+    backdrop-filter: blur(10px);
+    transition: opacity .28s var(--out), transform .38s var(--spring);
   }}
-  @media (prefers-reduced-motion: reduce) {{ .swipe-card {{ transition: none; }} }}
+  .toast.show {{ opacity: 1; transform: translate(-50%, 0) scale(1); }}
+
+  :focus-visible {{ outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }}
+
+  @media (min-width: 900px) {{
+    .layout {{ grid-template-columns: minmax(0, 1fr) 296px; gap: 2.25rem; }}
+    .stage {{ height: clamp(460px, 64vh, 600px); }}
+    .card {{ width: min(88%, 430px); }}
+    .queue {{ display: block; position: sticky; top: 8.5rem; }}
+    .hint {{ display: block; }}
+  }}
+
+  @media (prefers-reduced-motion: reduce) {{
+    *, *::before, *::after {{
+      animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important;
+    }}
+    .mesh {{ animation: none; }}
+  }}
 </style>
 </head>
 <body data-generated="{now.isoformat()}">
+  <div class="mesh" aria-hidden="true"></div>
+
   <header>
-    <div class="titlebar">
-      <h1>newsdigest</h1>
-      <span class="stats" id="stats">{live_count}/{total_count} feeds &middot; {len(articles)} articles</span>
+    <div class="bar">
+      <div class="brand"><span class="dot" aria-hidden="true"></span> newsdigest</div>
+      <div class="head-right">
+        <span class="fresh" title="{sourced_count} of {total_count} feeds contributed at least one article to this deck. Feed-by-feed health lives in reports/feed_check.md.">{sourced_count}/{total_count} feeds</span>
+        <span class="fresh sep" aria-hidden="true">&middot;</span>
+        <span class="fresh" id="fresh"></span>
+        <button class="ghost" id="refresh" title="Check for a newer snapshot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
     </div>
-    <div class="freshness">
-      <span id="freshness-text"></span>
-      <button class="refresh-btn" id="btn-refresh" title="Check for the latest snapshot">&#8635; Refresh</button>
-    </div>
-    <nav class="filters" id="topic-filters"></nav>
-    <nav class="filters filters-sub" id="filters"></nav>
+    <nav class="chips" id="topics" aria-label="Filter by topic"></nav>
+    <nav class="chips chips-sub" id="sources" aria-label="Filter by source"></nav>
+    <div class="rail"><i id="rail"></i></div>
   </header>
+
   <div class="layout">
     <div>
-      <main class="stage" id="stage"></main>
-      <div class="controls">
-        <button class="ctrl-btn" id="btn-prev" title="Previous">&#8249;</button>
-        <button class="ctrl-btn" id="btn-next" title="Next">&#8250;</button>
+      <main class="stage" id="stage" aria-live="polite"></main>
+      <div class="ctrls">
+        <button class="rnd" id="prev" title="Previous (left arrow)" aria-label="Previous article">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <button class="rnd" id="next" title="Next (right arrow)" aria-label="Next article">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
       </div>
-      <div class="counter" id="counter"></div>
-      <div class="kbd-hint">&larr; / &rarr; to move between articles &middot; &#9734; saves it &middot; &#8646; shares a link back to this card</div>
+      <div class="count" id="count"></div>
+      <div class="hint">
+        <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to move &middot; <kbd>S</kbd> save &middot; drag the card either way
+      </div>
     </div>
-    <aside class="queue" id="queue"><h3>Up next</h3><div id="queue-list"></div></aside>
+    <aside class="queue" id="queue">
+      <h3>Up next</h3>
+      <div id="qlist"></div>
+    </aside>
   </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
   <script id="data" type="application/json">{data_json}</script>
   <script>
   (function () {{
-    const all = JSON.parse(document.getElementById('data').textContent);
-    const stage = document.getElementById('stage');
-    const queueList = document.getElementById('queue-list');
-    const counterEl = document.getElementById('counter');
-    const statsEl = document.getElementById('stats');
-    const filtersEl = document.getElementById('filters');
-    const topicFiltersEl = document.getElementById('topic-filters');
+    "use strict";
 
-    const sources = [...new Set(all.map(a => a.source))].sort();
-    const topics = [...new Set(all.map(a => a.topic))].sort();
-    const SAVED_KEY = 'newsdigest:saved';
-    let saved = new Set(JSON.parse(localStorage.getItem(SAVED_KEY) || '[]'));
-    let sourceFilter = 'all';
-    let topicFilter = 'all';
-    let index = 0;
+    var ICON = {{
+      star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2l2.85 5.78 6.38.93-4.61 4.5 1.09 6.36L12 17.76l-5.71 3.01 1.09-6.36-4.61-4.5 6.38-.93L12 3.2z"/></svg>',
+      share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/></svg>',
+      out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg>'
+    }};
 
-    function jumpToHash() {{
-      const pos = all.findIndex(a => a.id === location.hash.slice(1));
-      if (pos >= 0) {{
-        sourceFilter = 'all'; topicFilter = 'all'; index = pos;
-        renderSourceFilters(); renderTopicFilters(); render();
+    var all = JSON.parse(document.getElementById('data').textContent);
+    var stage = document.getElementById('stage');
+    var topicsEl = document.getElementById('topics');
+    var sourcesEl = document.getElementById('sources');
+    var qlist = document.getElementById('qlist');
+    var countEl = document.getElementById('count');
+    var railEl = document.getElementById('rail');
+    var freshEl = document.getElementById('fresh');
+    var toastEl = document.getElementById('toast');
+    var prevBtn = document.getElementById('prev');
+    var nextBtn = document.getElementById('next');
+
+    var SAVED_KEY = 'newsdigest:saved';
+    var saved = new Set();
+    try {{
+      var raw = JSON.parse(localStorage.getItem(SAVED_KEY) || '[]');
+      if (Array.isArray(raw)) saved = new Set(raw);
+    }} catch (e) {{}}
+
+    var sources = Array.from(new Set(all.map(function (a) {{ return a.source; }}))).sort();
+    var topics = Array.from(new Set(all.map(function (a) {{ return a.topic; }}))).sort();
+    var hueOf = {{}};
+    all.forEach(function (a) {{ if (!(a.source in hueOf)) hueOf[a.source] = a.hue; }});
+
+    // Saved ids accumulate across hourly rebuilds, but only ids still in this
+    // snapshot can ever be shown -- so the chip counted articles the Saved
+    // view could not display. Prune to what exists, and only rewrite storage
+    // if something actually dropped (keeps other tabs' entries intact).
+    (function pruneSaved() {{
+      var live = new Set(all.map(function (a) {{ return a.id; }}));
+      var kept = Array.from(saved).filter(function (id) {{ return live.has(id); }});
+      if (kept.length !== saved.size) {{
+        saved = new Set(kept);
+        try {{ localStorage.setItem(SAVED_KEY, JSON.stringify(kept)); }} catch (e) {{}}
       }}
-    }}
-    if (location.hash) jumpToHash();
-    // covers a shared link opened in a tab that already had the page loaded
-    window.addEventListener('hashchange', jumpToHash);
+    }})();
 
-    // "Refresh" doesn't trigger a new Action run -- there's no server to hold
-    // the token that would take, and a token embedded in a public page is a
-    // bad idea regardless. It re-fetches whatever the hourly cron has
-    // already published, bypassing any stale browser/CDN cache, and is a
-    // no-op (with a toast) if the page is already newer than the cooldown.
-    const REFRESH_COOLDOWN_MIN = 30;
-    const generatedAt = new Date(document.body.dataset.generated);
-
-    function minutesSinceGenerated() {{
-      return (Date.now() - generatedAt.getTime()) / 60000;
-    }}
-
-    function updateFreshnessText() {{
-      const mins = Math.floor(minutesSinceGenerated());
-      const label = mins < 1 ? 'just now' : mins < 60 ? `${{mins}}m ago` : `${{Math.floor(mins / 60)}}h ago`;
-      document.getElementById('freshness-text').textContent = `Updated ${{label}}`;
-    }}
-    updateFreshnessText();
-
-    document.getElementById('btn-refresh').addEventListener('click', () => {{
-      const mins = minutesSinceGenerated();
-      if (mins < REFRESH_COOLDOWN_MIN) {{
-        toast(`Already fresh — updated ${{Math.floor(mins)}}m ago`);
-        return;
-      }}
-      toast('Checking for the latest snapshot…');
-      setTimeout(() => {{
-        location.href = `${{location.pathname}}?t=${{Date.now()}}${{location.hash}}`;
-      }}, 400);
-    }});
-
-    function persistSaved() {{ localStorage.setItem(SAVED_KEY, JSON.stringify([...saved])); }}
-
-    function toast(msg) {{
-      let t = document.getElementById('toast');
-      if (!t) {{
-        t = document.createElement('div');
-        t.id = 'toast';
-        t.className = 'toast';
-        document.body.appendChild(t);
-      }}
-      t.textContent = msg;
-      t.classList.add('show');
-      clearTimeout(toast._timer);
-      toast._timer = setTimeout(() => t.classList.remove('show'), 1800);
-    }}
-
-    function shareArticle(a) {{
-      const url = `${{location.origin}}${{location.pathname}}#${{a.id}}`;
-      const text = `${{a.title}} — via newsdigest`;
-      if (navigator.share) {{
-        navigator.share({{ title: a.title, text, url }}).catch(() => {{}});
-      }} else if (navigator.clipboard) {{
-        navigator.clipboard.writeText(`${{text}}\n${{url}}`).then(() => toast('Link copied'));
-      }}
-    }}
-
-    function toggleSave(id) {{
-      if (saved.has(id)) saved.delete(id); else saved.add(id);
-      persistSaved();
-      if (sourceFilter === '__saved__' && index >= filtered().length) index = 0;
-      renderSourceFilters();
-      render();
-    }}
+    var sourceFilter = 'all';
+    var topicFilter = 'all';
+    var index = 0;
+    var busy = false;   // an exit animation owns the deck; ignore new input
+    var renderSeq = 0;  // bumped per render so a finished fly-out can tell if
+                        // the deck moved on under it (filter click mid-swipe)
 
     function esc(s) {{
-      return String(s ?? '').replace(/[&<>"']/g, c => (
-        {{ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }}[c]
-      ));
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {{
+        return {{ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }}[c];
+      }});
     }}
-    function safeUrl(u) {{
-      return /^https?:\\/\\//i.test(u || '') ? u : '';
-    }}
+    // Anything that isn't plain http(s) is dropped, so a hostile feed can't
+    // smuggle a javascript: or data: URI into an href or img src.
+    function safeUrl(u) {{ return /^https?:\\/\\//i.test(u || '') ? u : ''; }}
 
     function filtered() {{
-      let list = sourceFilter === '__saved__' ? all.filter(a => saved.has(a.id))
-        : sourceFilter === 'all' ? all : all.filter(a => a.source === sourceFilter);
-      if (topicFilter !== 'all') list = list.filter(a => a.topic === topicFilter);
+      var list = sourceFilter === '__saved__'
+        ? all.filter(function (a) {{ return saved.has(a.id); }})
+        : sourceFilter === 'all' ? all : all.filter(function (a) {{ return a.source === sourceFilter; }});
+      if (topicFilter !== 'all') list = list.filter(function (a) {{ return a.topic === topicFilter; }});
       return list;
     }}
 
-    function relativeTime(iso) {{
+    // index === length is legal: that's the "all caught up" card.
+    function clampIndex() {{
+      var n = filtered().length;
+      if (index > n) index = n;
+      if (index < 0) index = 0;
+    }}
+
+    function relTime(iso) {{
       if (!iso) return 'undated';
-      const mins = (Date.now() - new Date(iso).getTime()) / 60000;
+      var mins = (Date.now() - new Date(iso).getTime()) / 60000;
+      if (mins < 0) mins = 0;
       if (mins < 1) return 'just now';
       if (mins < 60) return Math.floor(mins) + 'm ago';
-      const hours = mins / 60;
-      if (hours < 24) return Math.floor(hours) + 'h ago';
-      const days = hours / 24;
-      if (days < 7) return Math.floor(days) + 'd ago';
+      var h = mins / 60;
+      if (h < 24) return Math.floor(h) + 'h ago';
+      var d = h / 24;
+      if (d < 7) return Math.floor(d) + 'd ago';
       return new Date(iso).toLocaleDateString(undefined, {{ month: 'short', day: 'numeric' }});
     }}
 
-    function renderSourceFilters() {{
-      const chip = (label, value, active, hue) =>
-        `<button class="filter${{active ? ' active' : ''}}" data-filter="${{esc(value)}}"` +
-        (hue !== undefined ? ` style="--hue:${{hue}}"` : '') + `>${{label}}</button>`;
-      let html = chip('All', 'all', sourceFilter === 'all');
-      html += chip(`&#9733; Saved <span class="count">${{saved.size}}</span>`, '__saved__', sourceFilter === '__saved__');
-      for (const s of sources) {{
-        const count = all.filter(a => a.source === s).length;
-        const hue = all.find(a => a.source === s).hue;
-        html += chip(`${{esc(s)}} <span class="count">${{count}}</span>`, s, sourceFilter === s, hue);
-      }}
-      filtersEl.innerHTML = html;
+    function toast(msg) {{
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      clearTimeout(toast.t);
+      toast.t = setTimeout(function () {{ toastEl.classList.remove('show'); }}, 1900);
     }}
 
-    function renderTopicFilters() {{
-      const chip = (label, value, active) =>
-        `<button class="filter topic-filter${{active ? ' active' : ''}}" data-topic="${{esc(value)}}">${{label}}</button>`;
-      let html = chip('All topics', 'all', topicFilter === 'all');
-      for (const t of topics) {{
-        const count = all.filter(a => a.topic === t).length;
-        html += chip(`${{esc(t)}} <span class="count">${{count}}</span>`, t, topicFilter === t);
-      }}
-      topicFiltersEl.innerHTML = html;
+    /* ---------- filter chips ---------- */
+
+    function chip(label, attr, val, on, hue, i) {{
+      return '<button class="chip' + (on ? ' on' : '') + '" ' + attr + '="' + esc(val) + '"'
+        + ' style="--i:' + i + (hue === undefined ? '' : ';--hue:' + hue) + '"'
+        + ' aria-pressed="' + (on ? 'true' : 'false') + '">' + label + '</button>';
     }}
 
-    function renderQueue() {{
-      const rest = filtered().slice(index + 1, index + 6);
-      queueList.innerHTML = rest.length ? rest.map(a => `
-        <div class="queue-item" style="--hue:${{a.hue}}">
-          <span class="dot"></span>
-          <div><div class="qt">${{esc(a.title)}}</div><div class="qs">${{esc(a.source)}}</div></div>
-        </div>`).join('') : '<p style="color:var(--sub);font-size:.82rem">Nothing queued.</p>';
+    function renderTopics() {{
+      var h = chip('All topics', 'data-t', 'all', topicFilter === 'all', undefined, 0);
+      topics.forEach(function (t, i) {{
+        var n = all.filter(function (a) {{ return a.topic === t; }}).length;
+        h += chip(esc(t) + ' <span class="n">' + n + '</span>', 'data-t', t, topicFilter === t, undefined, i + 1);
+      }});
+      topicsEl.innerHTML = h;
     }}
 
-    function cardHtml(a) {{
-      const img = a.image ? `<div class="card-image"><img loading="lazy" src="${{esc(safeUrl(a.image))}}" alt=""
-        onerror="this.closest('.card-image').style.display='none'"></div>` : '';
-      const also = (a.alsoFrom && a.alsoFrom.length)
-        ? `<div class="also-from">+ ${{a.alsoFrom.map(esc).join(', ')}}</div>` : '';
-      const isSaved = saved.has(a.id);
-      return `
-        <div class="card-actions">
-          <button class="icon-btn save-btn${{isSaved ? ' saved' : ''}}" data-id="${{a.id}}" title="Save for later">${{isSaved ? '&#9733;' : '&#9734;'}}</button>
-          <button class="icon-btn share-btn" data-id="${{a.id}}" title="Share">&#8646;</button>
-        </div>
-        ${{img}}
-        <div class="card-body">
-          <span class="tag">${{esc(a.source)}}</span>
-          <span class="tag topic-tag">${{esc(a.topic)}}</span>
-          <time>${{relativeTime(a.published)}}</time>
-          <h2>${{esc(a.title)}}</h2>
-          ${{also}}
-          <p class="snippet">${{esc(a.snippet)}}</p>
-          <a class="read-link" href="${{esc(safeUrl(a.link))}}" target="_blank" rel="noopener noreferrer">Read full article &#8599;</a>
-        </div>`;
+    function renderSources() {{
+      var h = chip('All', 'data-f', 'all', sourceFilter === 'all', undefined, 0);
+      h += chip(ICON.star + ' ' + saved.size, 'data-f', '__saved__', sourceFilter === '__saved__', undefined, 1);
+      sources.forEach(function (s, i) {{
+        var n = all.filter(function (a) {{ return a.source === s; }}).length;
+        h += chip(esc(s) + ' <span class="n">' + n + '</span>', 'data-f', s, sourceFilter === s, hueOf[s], i + 2);
+      }});
+      sourcesEl.innerHTML = h;
+      // The star glyph inside a chip must not swallow the click target.
+      sourcesEl.querySelectorAll('.chip svg').forEach(function (s) {{
+        s.style.width = '.72rem'; s.style.height = '.72rem'; s.style.verticalAlign = '-.1em';
+      }});
+    }}
+
+    /* ---------- cards ---------- */
+
+    function cardMarkup(a) {{
+      var img = a.image ? safeUrl(a.image) : '';
+      var media = img
+        ? '<div class="media"><img alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(img) + '"><div class="scrim"></div></div>'
+        : '';
+      var also = (a.alsoFrom && a.alsoFrom.length)
+        ? '<div class="also">also on <b>' + a.alsoFrom.map(esc).join('</b>, <b>') + '</b></div>'
+        : '';
+      var on = saved.has(a.id);
+      var link = safeUrl(a.link);
+      return ''
+        + '<div class="tools">'
+        +   '<button class="tool save' + (on ? ' on' : '') + '" data-act="save" title="Save for later"'
+        +   ' aria-label="Save for later" aria-pressed="' + (on ? 'true' : 'false') + '">' + ICON.star + '</button>'
+        +   '<button class="tool" data-act="share" title="Share" aria-label="Share">' + ICON.share + '</button>'
+        + '</div>'
+        + media
+        + '<div class="body">'
+        +   '<div class="metarow">'
+        +     '<span class="src"><span class="ava">' + esc(a.initials) + '</span>' + esc(a.source) + '</span>'
+        +     '<span class="pill">' + esc(a.topic) + '</span>'
+        +   '</div>'
+        +   '<h2>' + esc(a.title) + '</h2>'
+        +   also
+        +   '<p class="snip">' + esc(a.snippet) + '</p>'
+        +   '<div class="foot"><time>' + esc(relTime(a.published)) + '</time>'
+        +     (link ? '<a class="read" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">Read' + ICON.out + '</a>' : '')
+        +   '</div>'
+        + '</div>';
     }}
 
     function render() {{
-      const list = filtered();
+      var list = filtered();
+      clampIndex();
       stage.innerHTML = '';
-      statsEl.textContent = `${{list.length}} article${{list.length === 1 ? '' : 's'}}`;
+      busy = false;
+      renderSeq++;
+
+      var pct = list.length ? Math.min(100, (index / list.length) * 100) : 0;
+      railEl.style.width = pct + '%';
+      prevBtn.disabled = index === 0;
+      nextBtn.disabled = index >= list.length;
 
       if (index >= list.length) {{
-        counterEl.textContent = list.length ? 'All caught up' : 'No articles for this filter';
-        const end = document.createElement('div');
-        end.className = 'swipe-card end-card';
-        end.innerHTML = `<div class="big">&#127881;</div><h2>You're all caught up</h2>
-          <p class="snippet" style="flex:none">Nothing left in this queue.</p>`;
+        countEl.textContent = list.length ? 'End of the queue' : 'Nothing matches those filters';
+        var end = document.createElement('article');
+        end.className = 'card end';
+        end.innerHTML = list.length
+          ? '<div class="big">&#10003;</div><h2>All caught up</h2><p>You have been through every story in this view.</p>'
+            + '<button class="ghost" data-act="restart">Start over</button>'
+          : '<div class="big">&#9788;</div><h2>Nothing here</h2><p>Try a different topic or source.</p>';
         stage.appendChild(end);
         renderQueue();
         return;
       }}
 
-      counterEl.textContent = `${{index + 1}} of ${{list.length}}`;
-      const depth = Math.min(3, list.length - index);
-      for (let i = depth - 1; i >= 0; i--) {{
-        const a = list[index + i];
-        const el = document.createElement('article');
-        el.className = 'swipe-card' + (a.image ? ' has-image' : '');
+      countEl.textContent = (index + 1) + ' of ' + list.length;
+
+      // Paint back-to-front so the top card is last in the DOM.
+      var depth = Math.min(3, list.length - index);
+      for (var i = depth - 1; i >= 0; i--) {{
+        var a = list[index + i];
+        var el = document.createElement('article');
+        el.className = 'card' + (i === 0 ? ' top' : '');
         el.style.setProperty('--hue', a.hue);
-        el.style.zIndex = 10 - i;
-        el.style.transform = `translateY(${{i * 10}}px) scale(${{1 - i * 0.045}})`;
-        el.style.opacity = i === 2 ? '0.6' : '1';
-        el.innerHTML = cardHtml(a);
-        if (i === 0) attachDrag(el);
+        el.style.setProperty('--i', depth - 1 - i);
+        el.style.zIndex = String(10 - i);
+        el.dataset.id = a.id;
+        el.innerHTML = cardMarkup(a);
+        if (i > 0) {{
+          el.style.transform = 'translateY(' + (i * 11) + 'px) scale(' + (1 - i * 0.045) + ')';
+          el.style.opacity = i === 2 ? '.55' : '.85';
+          el.setAttribute('aria-hidden', 'true');
+        }} else {{
+          attachDrag(el);
+        }}
+        var im = el.querySelector('.media img');
+        if (im) bindImage(im);
         stage.appendChild(el);
       }}
       renderQueue();
     }}
 
-    // Swiping either direction just moves to the next article -- there's no
-    // like/dislike distinction. Opening an article only happens via the
-    // explicit "Read full article" link, so it never gets triggered by accident.
+    // Fade the image in when it lands; drop the whole media block if the
+    // publisher's CDN 404s so we never show a broken-image box.
+    function bindImage(im) {{
+      var media = im.parentNode;
+      function ok() {{ media.classList.add('done'); im.classList.add('in'); }}
+      if (im.complete && im.naturalWidth > 0) {{ ok(); return; }}
+      im.addEventListener('load', ok);
+      im.addEventListener('error', function () {{ media.remove(); }});
+    }}
+
+    function renderQueue() {{
+      var rest = filtered().slice(index + 1, index + 7);
+      if (!rest.length) {{
+        qlist.innerHTML = '<p class="qempty">Nothing queued.</p>';
+        return;
+      }}
+      qlist.innerHTML = rest.map(function (a, i) {{
+        return '<button class="qi" data-jump="' + esc(a.id) + '" style="--hue:' + a.hue + ';--i:' + i + '">'
+          + '<span class="bar"></span><span><span class="t">' + esc(a.title) + '</span>'
+          + '<span class="s">' + esc(a.source) + ' &middot; ' + esc(relTime(a.published)) + '</span></span></button>';
+      }}).join('');
+    }}
+
+    /* ---------- navigation ---------- */
+
     function advance() {{ index += 1; render(); }}
     function goBack() {{ if (index > 0) {{ index -= 1; render(); }} }}
 
-    function attachDrag(card) {{
-      let startX = 0, startY = 0, dx = 0, dy = 0;
+    var DUR = 300;
+    var reduceMotion = window.matchMedia
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      function onMove(e) {{
-        dx = e.clientX - startX;
-        dy = e.clientY - startY;
-        card.style.transform = `translate(${{dx}}px, ${{dy}}px) rotate(${{dx / 18}}deg)`;
+    function flyOut(card, dir) {{
+      if (busy) return;
+      busy = true;
+      var seq = renderSeq;
+
+      // If a filter click (or a deep link) re-rendered while the card was
+      // flying out, that render already chose the index -- advancing again
+      // here would silently skip the first article of the new view.
+      var spent = false;
+      function done() {{
+        if (spent) return;
+        spent = true;
+        if (seq === renderSeq) advance();
+        else busy = false;
       }}
 
-      function onUp() {{
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-        card.classList.remove('dragging');
-        const THRESHOLD = 110;
-        if (Math.abs(dx) > THRESHOLD) {{
-          const dir = dx > 0 ? 1 : -1;
-          card.style.transform = `translate(${{dir * 700}}px, ${{dy}}px) rotate(${{dir * 30}}deg)`;
-          card.style.opacity = '0';
-          setTimeout(advance, 260);
-        }} else {{
-          card.style.transform = '';
-        }}
-      }}
+      if (reduceMotion || typeof card.animate !== 'function') {{ done(); return; }}
 
-      card.addEventListener('pointerdown', (e) => {{
-        if (e.target.closest('.read-link, .card-actions')) return;   // let links/buttons act normally
-        dx = 0; dy = 0;
-        startX = e.clientX; startY = e.clientY;
-        card.classList.add('dragging');
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', onUp);
-      }});
+      var anim = card.animate([
+        {{ transform: card.style.transform || 'none', opacity: 1 }},
+        {{ transform: 'translate(' + (dir * 640) + 'px, 40px) rotate(' + (dir * 22) + 'deg)', opacity: 0 }}
+      ], {{ duration: DUR, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'forwards' }});
+
+      if (anim.finished && anim.finished.then) anim.finished.then(done, done);
+      else anim.onfinish = done;
+
+      // Watchdog. A hidden or throttled tab never composites, so the
+      // animation never finishes and `finished` never settles -- without this
+      // `busy` would stay true and the deck would wedge for good. Verified:
+      // background the tab mid-swipe and every later tap/arrow is swallowed.
+      setTimeout(done, DUR + 150);
     }}
 
-    filtersEl.addEventListener('click', (e) => {{
-      const btn = e.target.closest('.filter');
+    // Dragging either direction just advances -- there is no like/dislike
+    // here. Opening an article is only ever the explicit Read link.
+    function attachDrag(card) {{
+      var x0 = 0, y0 = 0, dx = 0, dy = 0, active = false, pid = null;
+      var THRESH = 96;
+
+      card.addEventListener('pointerdown', function (e) {{
+        if (busy || e.button !== 0) return;
+        if (e.target.closest('button, a')) return;
+        active = true; pid = e.pointerId; dx = 0; dy = 0;
+        x0 = e.clientX; y0 = e.clientY;
+        card.classList.add('drag');
+        try {{ card.setPointerCapture(pid); }} catch (err) {{}}
+      }});
+
+      card.addEventListener('pointermove', function (e) {{
+        if (!active || e.pointerId !== pid) return;
+        dx = e.clientX - x0;
+        dy = e.clientY - y0;
+        var lift = Math.min(Math.abs(dx) / 900, .04);
+        card.style.transform = 'translate(' + dx + 'px,' + (dy * .35) + 'px)'
+          + ' rotate(' + (dx / 22) + 'deg) scale(' + (1 + lift) + ')';
+        card.style.opacity = String(Math.max(.45, 1 - Math.abs(dx) / 640));
+      }});
+
+      function release(e) {{
+        if (!active || (e && e.pointerId !== pid)) return;
+        active = false;
+        try {{ card.releasePointerCapture(pid); }} catch (err) {{}}
+        card.classList.remove('drag');
+        if (Math.abs(dx) > THRESH) {{
+          flyOut(card, dx > 0 ? 1 : -1);
+        }} else {{
+          card.style.transform = '';
+          card.style.opacity = '';
+        }}
+      }}
+      card.addEventListener('pointerup', release);
+      card.addEventListener('pointercancel', release);
+    }}
+
+    /* ---------- actions ---------- */
+
+    function toggleSave(id, btn) {{
+      if (saved.has(id)) saved.delete(id); else saved.add(id);
+      try {{ localStorage.setItem(SAVED_KEY, JSON.stringify(Array.from(saved))); }} catch (e) {{}}
+      var on = saved.has(id);
+      if (btn) {{
+        btn.classList.toggle('on', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.classList.remove('pop');
+        void btn.offsetWidth;          // restart the keyframe
+        btn.classList.add('pop');
+      }}
+      renderSources();
+      toast(on ? 'Saved' : 'Removed from saved');
+      // Un-saving inside the Saved view shrinks the list under our feet.
+      if (sourceFilter === '__saved__') render();
+    }}
+
+    function share(a) {{
+      var url = location.origin + location.pathname + '#' + a.id;
+      var text = a.title + ' — via newsdigest';
+      if (navigator.share) {{
+        navigator.share({{ title: a.title, text: text, url: url }}).catch(function () {{}});
+      }} else if (navigator.clipboard) {{
+        navigator.clipboard.writeText(text + '\\n' + url)
+          .then(function () {{ toast('Link copied'); }}, function () {{ toast('Could not copy'); }});
+      }} else {{
+        toast(url);
+      }}
+    }}
+
+    stage.addEventListener('click', function (e) {{
+      var btn = e.target.closest('[data-act]');
       if (!btn) return;
-      sourceFilter = btn.dataset.filter;
+      var act = btn.dataset.act;
+      if (act === 'restart') {{ index = 0; render(); return; }}
+      var card = btn.closest('.card');
+      if (!card) return;
+      var a = all.find(function (x) {{ return x.id === card.dataset.id; }});
+      if (!a) return;
+      if (act === 'save') toggleSave(a.id, btn);
+      else if (act === 'share') share(a);
+    }});
+
+    qlist.addEventListener('click', function (e) {{
+      var btn = e.target.closest('[data-jump]');
+      if (!btn) return;
+      var list = filtered();
+      var pos = list.findIndex(function (a) {{ return a.id === btn.dataset.jump; }});
+      if (pos >= 0) {{ index = pos; render(); }}
+    }});
+
+    topicsEl.addEventListener('click', function (e) {{
+      var btn = e.target.closest('.chip');
+      if (!btn) return;
+      topicFilter = btn.dataset.t;
       index = 0;
-      renderSourceFilters();
+      renderTopics();
       render();
     }});
 
-    topicFiltersEl.addEventListener('click', (e) => {{
-      const btn = e.target.closest('.filter');
+    sourcesEl.addEventListener('click', function (e) {{
+      var btn = e.target.closest('.chip');
       if (!btn) return;
-      topicFilter = btn.dataset.topic;
+      sourceFilter = btn.dataset.f;
       index = 0;
-      renderTopicFilters();
+      renderSources();
       render();
     }});
 
-    document.getElementById('btn-prev').addEventListener('click', goBack);
-    document.getElementById('btn-next').addEventListener('click', advance);
+    prevBtn.addEventListener('click', goBack);
+    nextBtn.addEventListener('click', function () {{
+      var top = stage.querySelector('.card.top');
+      if (top) flyOut(top, 1); else advance();
+    }});
 
-    stage.addEventListener('click', (e) => {{
-      const saveBtn = e.target.closest('.save-btn');
-      const shareBtn = e.target.closest('.share-btn');
-      if (saveBtn) toggleSave(saveBtn.dataset.id);
-      else if (shareBtn) {{
-        const a = all.find(x => x.id === shareBtn.dataset.id);
-        if (a) shareArticle(a);
+    document.addEventListener('keydown', function (e) {{
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      var t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (e.key === 'ArrowRight') {{
+        e.preventDefault();
+        var top = stage.querySelector('.card.top');
+        if (top) flyOut(top, 1); else advance();
+      }} else if (e.key === 'ArrowLeft') {{
+        e.preventDefault(); goBack();
+      }} else if (e.key === 's' || e.key === 'S') {{
+        var c = stage.querySelector('.card.top');
+        if (c) toggleSave(c.dataset.id, c.querySelector('.save'));
       }}
     }});
 
-    document.addEventListener('keydown', (e) => {{
-      if (e.key === 'ArrowRight') advance();
-      else if (e.key === 'ArrowLeft') goBack();
+    /* ---------- deep links ---------- */
+
+    function jumpToHash() {{
+      var id = location.hash.slice(1);
+      if (!id) return false;
+      // Clear filters first: a shared card may not be in the current view.
+      if (!all.some(function (a) {{ return a.id === id; }})) return false;
+      sourceFilter = 'all'; topicFilter = 'all';
+      index = filtered().findIndex(function (a) {{ return a.id === id; }});
+      if (index < 0) index = 0;
+      renderTopics(); renderSources(); render();
+      return true;
+    }}
+    window.addEventListener('hashchange', jumpToHash);
+
+    /* ---------- freshness / refresh ---------- */
+
+    var COOLDOWN_MIN = 30;
+    var built = new Date(document.body.dataset.generated);
+
+    function minsOld() {{ return (Date.now() - built.getTime()) / 60000; }}
+
+    function paintFresh() {{
+      var m = Math.floor(minsOld());
+      if (isNaN(m)) {{ freshEl.textContent = ''; return; }}
+      freshEl.textContent = 'Updated ' + (m < 1 ? 'just now' : m < 60 ? m + 'm ago' : Math.floor(m / 60) + 'h ago');
+    }}
+    paintFresh();
+    setInterval(paintFresh, 60000);
+
+    // This does NOT kick off a new Actions run -- a static page has nowhere
+    // safe to keep a token that could. It re-fetches whatever the hourly
+    // cron last published, past any stale browser/CDN copy.
+    document.getElementById('refresh').addEventListener('click', function () {{
+      var btn = this;
+      btn.classList.remove('spin'); void btn.offsetWidth; btn.classList.add('spin');
+      var m = minsOld();
+      if (!isNaN(m) && m < COOLDOWN_MIN) {{
+        toast('Already fresh — built ' + Math.floor(m) + 'm ago');
+        return;
+      }}
+      toast('Fetching the latest…');
+      setTimeout(function () {{
+        location.replace(location.pathname + '?t=' + Date.now() + location.hash);
+      }}, 420);
     }});
 
-    renderSourceFilters();
-    renderTopicFilters();
-    render();
+    /* ---------- boot ---------- */
+
+    renderTopics();
+    renderSources();
+    if (!jumpToHash()) render();
   }})();
   </script>
 </body>
@@ -968,19 +1400,42 @@ def main() -> int:
                 bits.append(r["note"])
             out += [f"**{r['name']}** — {', '.join(bits)}", f"`{r['url']}`", ""]
 
+    # encoding="utf-8" on every write, explicitly. Without it Python uses the
+    # platform default -- cp1252 on Windows -- and a single '₹' in a real
+    # headline aborts the whole run with UnicodeEncodeError. The Actions runner
+    # happens to default to UTF-8, so this only ever bit local runs, silently
+    # making the script look Linux-only. The HTML declares UTF-8 anyway.
     REPORT_MD.parent.mkdir(parents=True, exist_ok=True)
-    REPORT_MD.write_text("\n".join(out))
+    REPORT_MD.write_text("\n".join(out), encoding="utf-8")
     REPORT_JSON.write_text(json.dumps(
         {"checked_at": datetime.now(timezone.utc).isoformat(), "feeds": rows},
-        indent=2,
-    ))
+        indent=2, ensure_ascii=False,
+    ), encoding="utf-8")
     deduped = dedupe_articles(all_articles)
-    REPORT_HTML.write_text(render_html(deduped, len(live), len(rows)))
-
     merged = len(all_articles) - len(deduped)
-    print(f"\nwrote {REPORT_MD.name} + {REPORT_JSON.name} + {REPORT_HTML.name} "
-          f"({len(live)}/{len(rows)} usable, {len(deduped)} articles, "
-          f"{merged} cross-agency duplicate{'s' if merged != 1 else ''} merged)")
+
+    # Newest first, then cap. Undated entries sort last rather than winning the
+    # top of the deck by accident.
+    deduped.sort(
+        key=lambda a: a["published"] or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )
+    dropped = max(0, len(deduped) - DECK_LIMIT)
+    deck = deduped[:DECK_LIMIT]
+
+    # Count the feeds that actually put an article in the deck, not the ones
+    # that merely graded OK: all_articles takes anything with r["ok"], which
+    # includes STALE/FUTURE/NO DATES, so len(live) would understate the deck.
+    sourced = len({a["source"] for a in deck})
+    REPORT_HTML.write_text(render_html(deck, sourced, len(rows)), encoding="utf-8")
+
+    print(f"\nwrote {REPORT_MD.name} + {REPORT_JSON.name} + {REPORT_HTML.name}")
+    print(f"  {len(live)}/{len(rows)} feeds graded OK, {sourced} contributed to the deck")
+    print(f"  {len(all_articles)} articles -> {len(deduped)} after merging "
+          f"{merged} cross-agency duplicate{'s' if merged != 1 else ''}")
+    if dropped:
+        print(f"  deck capped at {DECK_LIMIT}: {dropped} older card"
+              f"{'s' if dropped != 1 else ''} not shown (raise DECK_LIMIT to include them)")
     return 0
 
 

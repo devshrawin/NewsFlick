@@ -67,6 +67,14 @@ summary links straight to the deck.
 
 Feeds marked DEAD or STALE get deleted from `feeds.yaml` or their URL fixed.
 
+## Deck size
+
+32 feeds yield roughly 2,000 articles an hour, ~1,900 after merging. Embedded
+as JSON that made `index.html` 1.3 MB — a slow load on the phone this is meant
+to be read on, for a deck nobody swipes a tenth of. `DECK_LIMIT` (400) keeps
+the newest N; the run prints how many were dropped rather than pretending it
+showed everything, and `feed_check.json` still has the full set.
+
 ## Topics
 
 Each article gets a topic tag (Politics, Business, Sports, Entertainment,
@@ -119,9 +127,41 @@ makes it an experiment rather than a hobby project.
   `DEDUPE_WINDOW_HOURS` of each other. Without that guard, a recurring
   generic headline ("Sensex closes higher") from the same publisher on two
   different days would merge across days and silently eat a real story.
-- Article `id` is `sha1(link)[:10]` — stable across runs as long as the
-  publisher URL doesn't change, which is what both the share deep-link
-  (`#<id>`) and the saved-articles list in `localStorage` key off of.
+- A cluster's `anchor`/`at` stay pinned to the article that **opened** it,
+  even when a better-looking representative takes over. Moving them with the
+  rep made membership depend on arrival order: a headline similar to the
+  original but not the new rep started a duplicate card, and one similar only
+  to the new rep got pulled in transitively — dropping a distinct story.
+- `also_from` is derived at the end from the cluster's member list minus the
+  rep's own source. Appending as-you-go left a source in its own "also on"
+  line once it had been demoted and then later won the rep slot back.
+- Article `id` is `sha1(link or source+title)[:10]` — stable across runs as
+  long as the publisher URL doesn't change, and that's what both the share
+  deep-link (`#<id>`) and the `localStorage` saved list key off. The
+  `source+title` fallback matters: `entry_link()` returns `""` for entries
+  with no `<link>`, and every one of those hashed to the same id, so starring
+  one starred them all.
+- Topic keywords are matched with `\b` word boundaries, not substrings.
+  `"who "` as a substring filed *"The MLA who quit the party"* under Health,
+  and a bare `"ai"` would hit "said".
+- `entry_image` skips `<img>` tags with a declared width/height under 100 and
+  known pixel hosts/paths. A 1×1 tracker **loads successfully**, so the
+  `onerror` fallback never fires — `object-fit: cover` just stretched it into
+  a solid colour block across the top of the card.
+- Every `write_text`/`read_text` passes `encoding="utf-8"` explicitly. Without
+  it Python uses the platform default — cp1252 on Windows — and one `₹` in a
+  real headline aborts the run. The Actions runner defaults to UTF-8, so this
+  only ever broke local runs, making the script look Linux-only.
+- The deck's fly-out animation has a `setTimeout` watchdog alongside
+  `anim.finished`. A hidden or throttled tab never composites, so the
+  animation never finishes and the promise never settles — without the
+  watchdog the `busy` flag stayed set and the deck wedged permanently.
+- The fly-out captures `renderSeq` and only advances if it still matches.
+  Clicking a filter mid-swipe otherwise let the pending callback increment
+  past the index that render had just chosen, skipping an article.
+- Saved ids are pruned against the current snapshot on load. They accumulate
+  across hourly rebuilds but only ids still present can be displayed, so the
+  chip counted articles the Saved view could not show.
 
 ## QA performed
 
@@ -143,6 +183,18 @@ End-to-end, not just unit-level:
 - Article deck manually tested against synthetic articles with a malicious
   `<script>` source name, an `onerror`-bearing title, and `javascript:` link
   and image URLs — all rendered as inert text, nothing executed.
+- Full pipeline run against all 32 live feeds: 2,014 articles → 1,928 after
+  merging 86 duplicates, 0 articles with an empty link, all ids unique, and 0
+  cases of a representative appearing in its own `also_from`.
+- 12 real publisher image URLs fetched in-browser: all 12 loaded, none a
+  tracking pixel (smallest 620×450), confirming the pixel filter on real data.
+- Deck driven through the browser: next/prev, progress rail, topic∧source
+  filtering, a contradictory filter pair (empty-state card), save + the Saved
+  pseudo-filter, `localStorage` persistence, queue-jump, `S` to save, the
+  end-of-queue card and Start over, and a deep link into an article hidden by
+  the active filter (clears filters and lands on it). Bogus `#hash` ignored
+  without blanking the deck. No console errors; no horizontal overflow at
+  375 px or 1280 px; dark mode resolves (`color-mix()` computes).
 
 **Update 2026-08-03:** all 32 feeds now in `feeds.yaml` were reachable and
 validated from this dev environment (27 OK, 5 STALE-but-alive, 0 dead) — a
