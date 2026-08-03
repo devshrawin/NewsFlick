@@ -3,9 +3,18 @@
 Two-week experiment: can an automated pipeline cluster India news feeds by
 story and summarise each cluster well enough to be worth reading?
 
-No frontend. No app. A SQLite file and a daily markdown digest read on a phone.
-If the clustering and the summaries aren't good, that's a two-weekend loss
-instead of a two-month one.
+No backend, no database server. A SQLite file, a GitHub Actions workflow, and
+a static page on GitHub Pages. If the clustering and the summaries aren't
+good, that's a two-weekend loss instead of a two-month one.
+
+Right now, before clustering/summarising exist, the feed-check stage already
+produces something worth using on its own: a swipeable card deck
+(`reports/index.html`, published via Pages) of every article the live feeds
+are currently carrying — title, source, time, a snippet, and a lead image
+where the feed has one. Drag or use the arrow keys to move between articles;
+tap "Read full article" to open one. That's a byproduct of validating the
+feeds, not the end goal — see Pass marks below for what actually decides if
+this experiment succeeds.
 
 ## Pass marks (fixed before the build, so they can't be rationalised later)
 
@@ -29,6 +38,7 @@ That keeps the tuning loop at seconds rather than minutes.
 
 - [x] Feed health check
 - [x] Schema
+- [x] Article deck (swipeable viewer, published via Pages) — validation tool, not the deliverable
 - [ ] Ingest + extraction
 - [ ] Golden set (hand-labelled day one)
 - [ ] Embed + cluster
@@ -38,7 +48,12 @@ That keeps the tuning loop at seconds rather than minutes.
 ## Running the feed check
 
 Actions tab → **Check feeds** → **Run workflow**. Takes about a minute.
-Result lands in `reports/feed_check.md`.
+Writes `reports/feed_check.md`, `reports/feed_check.json`, and
+`reports/index.html`, and pushes them back to the repo.
+
+The workflow also deploys `reports/` to GitHub Pages. **One-time setup:**
+Settings → Pages → Source → **GitHub Actions**. After that, the run's job
+summary links straight to the deck.
 
 Feeds marked DEAD or STALE get deleted from `feeds.yaml` or their URL fixed.
 
@@ -73,6 +88,12 @@ makes it an experiment rather than a hobby project.
   redo that arithmetic.
 - Schema does **not** set `journal_mode = WAL`. WAL is persistent, and
   `news.db-wal` is gitignored — committed rows would silently vanish on push.
+- `render_html`'s article deck renders from a JSON payload client-side (needed
+  to drive the swipe/filter/queue state), so titles and snippets go through
+  `innerHTML` in the browser. Every interpolated text field goes through the
+  page's `esc()` first, and article/image URLs go through `safeUrl()` (only
+  `http`/`https` pass) — otherwise a hostile feed's `<title>` or `<link>`
+  becomes script execution or a `javascript:` URI in someone's browser.
 
 ## QA performed
 
@@ -91,7 +112,12 @@ End-to-end, not just unit-level:
   missing url, duplicate names, missing file. All give a readable message
   instead of a traceback.
 - Schema re-runs idempotently; UNIQUE and FK constraints verified to fire.
+- Article deck manually tested against synthetic articles with a malicious
+  `<script>` source name, an `onerror`-bearing title, and `javascript:` link
+  and image URLs — all rendered as inert text, nothing executed.
 
 **Not covered:** the 21 real publisher feeds. They cannot be reached from the
 environment this was built in, so their URLs, block behaviour, and body shapes
-are unverified until the workflow runs for real.
+are unverified until the workflow runs for real — including whether their
+images actually resolve, and whether real headline/snippet text ever breaks
+the deck layout in a way synthetic fixtures didn't catch.
