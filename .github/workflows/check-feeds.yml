@@ -3,13 +3,19 @@ name: Check feeds
 # Runs hourly, or tap Actions -> Check feeds -> Run workflow for an
 # on-demand run. No API keys needed.
 #
+# Minute is :17, not :00. Every repo whose cron says "0 * * * *" queues at
+# the exact same moment, and GitHub explicitly documents that scheduled runs
+# can be delayed or dropped outright under that load. Verified this bit us:
+# with :00, 4+ hours and 8 runs passed with zero schedule-triggered runs (all
+# manual). Keep it off the round numbers.
+#
 # GitHub disables `schedule` triggers after 60 days with no repo activity
 # (any push/commit resets the clock) -- re-enable from the Actions tab if
 # that happens.
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "17 * * * *"
 
 permissions:
   contents: write

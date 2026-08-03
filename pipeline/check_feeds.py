@@ -703,10 +703,17 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
 
   /* ---- first-run "what do you care about" onboarding form ---- */
   .onb-scrim {{
-    position: fixed; inset: 0; z-index: 50; background: var(--scrim);
+    position: fixed; inset: 0; z-index: 15; background: var(--scrim);
     display: flex; align-items: flex-end; justify-content: center;
     opacity: 0; pointer-events: none; transition: opacity .28s var(--out);
   }}
+  /* Sits below the header (z-index 20) on purpose: the onboarding prompt
+     should gate the deck, not the hamburger/refresh controls. It used to sit
+     above everything (z-index 50), so the very first tap on the hamburger
+     landed on this backdrop instead -- geometrically correct (the backdrop
+     covers the full viewport for tap-outside-to-dismiss), but it meant that
+     tap silently just closed the prompt instead of opening the drawer, which
+     read as "the hamburger doesn't do anything." */
   .onb-scrim.show {{ opacity: 1; pointer-events: auto; }}
   .onb {{
     width: 100%; max-width: 480px; max-height: 86vh; overflow-y: auto;
@@ -762,6 +769,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     display: flex; flex-direction: column; overflow: hidden;
     background: var(--surface); border: 1px solid var(--line);
     border-radius: var(--radius);
+    user-select: none;   /* dragging the card must not highlight its text */
     /* A tighter shadow than --shadow-xl -- that one's 64px-blur layer bled far
        enough below the card to visually run into the prev/next buttons. */
     box-shadow: 0 6px 14px -8px rgba(0,0,0,.35), 0 18px 34px -20px rgba(0,0,0,.4);
@@ -783,6 +791,8 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     width: 100%; height: 100%; object-fit: cover; display: block;
     opacity: 0; transform: scale(1.06);
     transition: opacity .55s var(--out), transform 1.1s var(--out);
+    -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none;
+    pointer-events: none;   /* the card element owns the drag, not the <img> */
   }}
   .media img.in {{ opacity: 1; transform: none; }}
   /* Shimmer sits under the image and is simply covered once it paints. */
@@ -925,10 +935,20 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
 
   @media (min-width: 900px) {{
     .layout {{ grid-template-columns: minmax(0, 1fr) 296px; gap: 2.25rem; }}
-    .stage {{ height: clamp(460px, 64vh, 600px); }}
-    .card {{ width: min(88%, 430px); }}
     .queue {{ display: block; position: sticky; top: 8.5rem; }}
     .hint {{ display: block; }}
+
+    /* Landscape cards on desktop: image beside the text instead of on top of
+       it. Mobile keeps the tall portrait layout defined above untouched --
+       these rules only apply from this breakpoint up. */
+    .stage {{ height: clamp(300px, 46vh, 380px); }}
+    .card {{ width: min(94%, 780px); }}
+    .card:not(.end) {{ flex-direction: row; }}   /* .end stays a centered vertical stack */
+    .media {{ flex: 0 0 40%; height: 100%; }}
+    .media .scrim {{ display: none; }}   /* nothing overlays the image in this layout */
+    .card:not(.end) h2 {{ -webkit-line-clamp: 2; }}
+    .snip {{ -webkit-line-clamp: 2; }}
+    .body {{ padding: 1.3rem 1.5rem; }}
   }}
 
   @media (prefers-reduced-motion: reduce) {{
@@ -1195,6 +1215,40 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       render();
     }}
 
+    // Only well-defined when browsing exactly one topic, or one specific
+    // source with no topic narrowing -- "next section" doesn't mean anything
+    // when the view is unfiltered or spans several topics at once.
+    function nextSectionSuggestion() {{
+      function matchesOtherFilter(a) {{
+        if (sourceFilter === 'all') return true;
+        if (sourceFilter === '__saved__') return saved.has(a.id);
+        return a.source === sourceFilter;
+      }}
+      if (interests.size === 1) {{
+        var current = Array.from(interests)[0];
+        var start = topics.indexOf(current);
+        for (var k = 1; k <= topics.length; k++) {{
+          var cand = topics[(start + k) % topics.length];
+          if (cand === current) break;
+          var count = all.filter(function (a) {{ return a.topic === cand && matchesOtherFilter(a); }}).length;
+          if (count > 0) return {{ kind: 'topic', value: cand, count: count, doneLabel: current }};
+        }}
+        return null;
+      }}
+      if (interests.size === 0 && sourceFilter !== 'all' && sourceFilter !== '__saved__') {{
+        var curS = sourceFilter;
+        var startS = sources.indexOf(curS);
+        for (var j = 1; j <= sources.length; j++) {{
+          var candS = sources[(startS + j) % sources.length];
+          if (candS === curS) break;
+          var countS = all.filter(function (a) {{ return a.source === candS; }}).length;
+          if (countS > 0) return {{ kind: 'source', value: candS, count: countS, doneLabel: curS }};
+        }}
+        return null;
+      }}
+      return null;
+    }}
+
     function renderSources() {{
       var h = chip('All', 'data-f', 'all', sourceFilter === 'all', undefined, 0);
       h += chip(ICON.star + ' ' + saved.size, 'data-f', '__saved__', sourceFilter === '__saved__', undefined, 1);
@@ -1213,8 +1267,13 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
 
     function cardMarkup(a) {{
       var img = a.image ? safeUrl(a.image) : '';
+      // draggable="false" plus the CSS user-drag/user-select rules on .media
+      // img stop the browser's own "drag this image" / text-selection
+      // gesture from grabbing a pointerdown that started over the photo --
+      // without it, starting a swipe on the image dragged/selected the
+      // picture instead of moving the card.
       var media = img
-        ? '<div class="media"><img alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(img) + '"><div class="scrim"></div></div>'
+        ? '<div class="media"><img alt="" draggable="false" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(img) + '"><div class="scrim"></div></div>'
         : '';
       var also = (a.alsoFrom && a.alsoFrom.length)
         ? '<div class="also">also on <b>' + a.alsoFrom.map(esc).join('</b>, <b>') + '</b></div>'
@@ -1242,26 +1301,68 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         + '</div>';
     }}
 
+    // Shared by the full rebuild and the lightweight promotion path so a
+    // freshly-created card and a promoted one end up in an identical state.
+    function buildCardEl(a, stackI) {{
+      var el = document.createElement('article');
+      el.className = 'card' + (stackI === 0 ? ' top' : '');
+      el.style.setProperty('--hue', a.hue);
+      el.style.setProperty('--i', stackI);
+      el.style.zIndex = String(10 - stackI);
+      el.dataset.id = a.id;
+      el.innerHTML = cardMarkup(a);
+      if (stackI > 0) {{
+        el.style.transform = 'translateY(' + (stackI * 11) + 'px) scale(' + (1 - stackI * 0.045) + ')';
+        el.style.opacity = stackI === 2 ? '.55' : '.85';
+        el.setAttribute('aria-hidden', 'true');
+      }} else {{
+        attachDrag(el);
+      }}
+      var im = el.querySelector('.media img');
+      if (im) bindImage(im);
+      return el;
+    }}
+
+    function paintChrome(list) {{
+      var pct = list.length ? Math.min(100, (index / list.length) * 100) : 0;
+      railEl.style.width = pct + '%';
+      prevBtn.disabled = index === 0;
+      nextBtn.disabled = index >= list.length;
+    }}
+
+    // Full rebuild: destroys and recreates the whole stack. Correct after
+    // anything that can change WHICH articles are in play (filter change,
+    // deep link, restart, going backward) -- but rebuilding on every forward
+    // step is what caused the swipe hiccup: the card being promoted from
+    // "peeking behind" to "on top" popped straight to its final position
+    // instead of animating there, since a freshly-created element has
+    // nothing to transition *from*. promoteAfterFlyOut() below handles the
+    // forward-step case by mutating the existing DOM nodes instead.
     function render() {{
       var list = filtered();
       clampIndex();
       stage.innerHTML = '';
       busy = false;
       renderSeq++;
-
-      var pct = list.length ? Math.min(100, (index / list.length) * 100) : 0;
-      railEl.style.width = pct + '%';
-      prevBtn.disabled = index === 0;
-      nextBtn.disabled = index >= list.length;
+      paintChrome(list);
 
       if (index >= list.length) {{
         countEl.textContent = list.length ? 'End of the queue' : 'Nothing matches those filters';
         var end = document.createElement('article');
         end.className = 'card end';
-        end.innerHTML = list.length
-          ? '<div class="big">&#10003;</div><h2>All caught up</h2><p>You have been through every story in this view.</p>'
-            + '<button class="ghost" data-act="restart">Start over</button>'
-          : '<div class="big">&#9788;</div><h2>Nothing here</h2><p>Try a different topic or source.</p>';
+        var next = list.length ? nextSectionSuggestion() : null;
+        if (next) {{
+          end.innerHTML = '<div class="big">&#10003;</div><h2>' + esc(next.doneLabel) + ' done</h2>'
+            + '<p>' + next.count + ' more in ' + esc(next.value) + '.</p>'
+            + '<button class="onb-go" data-act="next-section" data-kind="' + next.kind + '" data-value="' + esc(next.value) + '">'
+            + 'Continue to ' + esc(next.value) + '</button>'
+            + '<button class="ghost" data-act="restart" style="margin-top:.6rem">Start over instead</button>';
+        }} else {{
+          end.innerHTML = list.length
+            ? '<div class="big">&#10003;</div><h2>All caught up</h2><p>You have been through every story in this view.</p>'
+              + '<button class="ghost" data-act="restart">Start over</button>'
+            : '<div class="big">&#9788;</div><h2>Nothing here</h2><p>Try a different topic or source.</p>';
+        }}
         stage.appendChild(end);
         renderQueue();
         return;
@@ -1272,24 +1373,45 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       // Paint back-to-front so the top card is last in the DOM.
       var depth = Math.min(3, list.length - index);
       for (var i = depth - 1; i >= 0; i--) {{
-        var a = list[index + i];
-        var el = document.createElement('article');
-        el.className = 'card' + (i === 0 ? ' top' : '');
-        el.style.setProperty('--hue', a.hue);
-        el.style.setProperty('--i', depth - 1 - i);
-        el.style.zIndex = String(10 - i);
-        el.dataset.id = a.id;
-        el.innerHTML = cardMarkup(a);
-        if (i > 0) {{
-          el.style.transform = 'translateY(' + (i * 11) + 'px) scale(' + (1 - i * 0.045) + ')';
-          el.style.opacity = i === 2 ? '.55' : '.85';
-          el.setAttribute('aria-hidden', 'true');
-        }} else {{
+        stage.appendChild(buildCardEl(list[index + i], i));
+      }}
+      renderQueue();
+    }}
+
+    // Forward-step path: the top card has already animated off-screen and
+    // been removed by the caller. Promote every remaining stacked card up
+    // one level in place (a CSS transition on the *same* DOM node, so it
+    // actually moves instead of popping in) and append one fresh card at the
+    // back if the deck still has one to show.
+    function promoteAfterFlyOut() {{
+      var list = filtered();
+      if (index >= list.length) {{ render(); return; }}   // nothing to promote from
+
+      busy = false;
+      renderSeq++;
+      paintChrome(list);
+      countEl.textContent = (index + 1) + ' of ' + list.length;
+
+      var remaining = Array.prototype.slice.call(stage.querySelectorAll('.card'));
+      remaining.forEach(function (el) {{
+        var newI = (parseInt(el.style.getPropertyValue('--i'), 10) || 0) - 1;
+        el.style.setProperty('--i', newI);
+        el.style.zIndex = String(10 - newI);
+        if (newI === 0) {{
+          el.classList.add('top');
+          el.removeAttribute('aria-hidden');
+          el.style.transform = '';
+          el.style.opacity = '';
           attachDrag(el);
+        }} else {{
+          el.style.transform = 'translateY(' + (newI * 11) + 'px) scale(' + (1 - newI * 0.045) + ')';
+          el.style.opacity = newI === 2 ? '.55' : '.85';
         }}
-        var im = el.querySelector('.media img');
-        if (im) bindImage(im);
-        stage.appendChild(el);
+      }});
+
+      var depth = Math.min(3, list.length - index);
+      for (var pos = remaining.length; pos < depth; pos++) {{
+        stage.appendChild(buildCardEl(list[index + pos], pos));
       }}
       renderQueue();
     }}
@@ -1338,7 +1460,8 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       function done() {{
         if (spent) return;
         spent = true;
-        if (seq === renderSeq) advance();
+        card.remove();   // no-op if a full render() already replaced the stage
+        if (seq === renderSeq) {{ index += 1; promoteAfterFlyOut(); }}
         else busy = false;
       }}
 
@@ -1437,6 +1560,16 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       if (!btn) return;
       var act = btn.dataset.act;
       if (act === 'restart') {{ index = 0; render(); return; }}
+      if (act === 'next-section') {{
+        index = 0;
+        if (btn.dataset.kind === 'topic') {{
+          interests.clear(); interests.add(btn.dataset.value); persistInterests(); renderTopics();
+        }} else {{
+          sourceFilter = btn.dataset.value; renderSources();
+        }}
+        render();
+        return;
+      }}
       var card = btn.closest('.card');
       if (!card) return;
       var a = all.find(function (x) {{ return x.id === card.dataset.id; }});
