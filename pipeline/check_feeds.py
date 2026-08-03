@@ -15,6 +15,7 @@ Per feed we record:
 """
 
 import calendar
+import difflib
 import html
 import json
 import re
@@ -47,6 +48,16 @@ STUB_THRESHOLD = 400   # chars of body below which we call it a teaser
 STALE_HOURS = 48
 SKEW_HOURS = 2      # newest entry this far in the FUTURE = broken publisher clock
 MAX_BYTES = 8 * 1024 * 1024   # refuse to buffer a runaway feed
+
+# Same wire story (PTI/ANI/Reuters) run near-verbatim by multiple publishers
+# tends to have near-identical headlines; unrelated stories rarely score this
+# high on normalized-title similarity. High threshold favors under-merging
+# (a leftover duplicate card) over over-merging (silently dropping a distinct
+# story) -- this is a stopgap title-similarity heuristic, not the semantic
+# "Embed + cluster" stage on the roadmap, which is what actually earns the
+# clustering pass mark. Tune here, not there.
+DEDUPE_TITLE_THRESHOLD = 0.78
+DEDUPE_WINDOW_HOURS = 20   # only merge articles whose published times are this close
 
 
 def strip_html(text: str) -> str:
@@ -275,6 +286,60 @@ def source_initials(name: str) -> str:
     return (words[0][0] + words[1][0]).upper()
 
 
+TITLE_NOISE_RE = re.compile(r"[^\w\s]")
+
+
+def normalize_title(title: str) -> str:
+    return re.sub(r"\s+", " ", TITLE_NOISE_RE.sub(" ", title.lower())).strip()
+
+
+def dedupe_articles(articles: list) -> list:
+    """Collapse near-duplicate headlines (typically the same wire story --
+    PTI/ANI/Reuters -- run by multiple publishers) into one card, keeping the
+    best-looking representative and listing who else carried it."""
+    clusters = []   # each: {"rep": article, "norm": str, "also_from": [source, ...]}
+
+    def better(a, b):
+        """True if `a` should represent the cluster over current rep `b`."""
+        a_img, b_img = bool(a.get("image")), bool(b.get("image"))
+        if a_img != b_img:
+            return a_img
+        if len(a["snippet"]) != len(b["snippet"]):
+            return len(a["snippet"]) > len(b["snippet"])
+        return (a["published"] or datetime.min.replace(tzinfo=timezone.utc)) > \
+               (b["published"] or datetime.min.replace(tzinfo=timezone.utc))
+
+    for a in articles:
+        norm = normalize_title(a["title"])
+        match = None
+        for c in clusters:
+            if a["published"] and c["rep"]["published"]:
+                gap_hours = abs((a["published"] - c["rep"]["published"]).total_seconds()) / 3600
+                if gap_hours > DEDUPE_WINDOW_HOURS:
+                    continue
+            if difflib.SequenceMatcher(None, norm, c["norm"]).ratio() >= DEDUPE_TITLE_THRESHOLD:
+                match = c
+                break
+        if match is None:
+            clusters.append({"rep": a, "norm": norm, "also_from": []})
+            continue
+        old_rep = match["rep"]
+        if better(a, old_rep):
+            match["rep"], match["norm"] = a, norm
+            demoted_source = old_rep["source"]
+        else:
+            demoted_source = a["source"]
+        if demoted_source != match["rep"]["source"] and demoted_source not in match["also_from"]:
+            match["also_from"].append(demoted_source)
+
+    out = []
+    for c in clusters:
+        rep = dict(c["rep"])
+        rep["also_from"] = c["also_from"]
+        out.append(rep)
+    return out
+
+
 def render_html(articles: list, live_count: int, total_count: int) -> str:
     """Self-contained swipeable article deck -- open reports/index.html (or
     the Pages URL) instead of poking at news.db to see what the feeds have.
@@ -295,6 +360,7 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
             "published": a["published"].isoformat() if a["published"] else None,
             "hue": source_hue(a["source"]),
             "initials": source_initials(a["source"]),
+            "alsoFrom": a.get("also_from", []),
         }
         for a in sorted(articles, key=sort_key, reverse=True)
     ]
@@ -389,7 +455,8 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     .swipe-card .tag {{ background: hsl(var(--hue) 40% 20%); color: hsl(var(--hue) 75% 82%); }}
   }}
   .swipe-card time {{ display: block; color: var(--sub); font-size: 0.78rem; margin: 0.6rem 0 0.9rem; }}
-  .swipe-card h2 {{ font-size: 1.25rem; line-height: 1.3; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 0.7rem; }}
+  .swipe-card h2 {{ font-size: 1.25rem; line-height: 1.3; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 0.4rem; }}
+  .also-from {{ font-size: 0.74rem; color: var(--sub); margin: 0 0 0.7rem; }}
   .swipe-card .snippet {{
     margin: 0; color: var(--sub); font-size: 0.92rem; line-height: 1.5; flex: 1;
     overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
@@ -519,12 +586,15 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     function cardHtml(a) {{
       const img = a.image ? `<div class="card-image"><img loading="lazy" src="${{esc(safeUrl(a.image))}}" alt=""
         onerror="this.closest('.card-image').style.display='none'"></div>` : '';
+      const also = (a.alsoFrom && a.alsoFrom.length)
+        ? `<div class="also-from">+ ${{a.alsoFrom.map(esc).join(', ')}}</div>` : '';
       return `
         ${{img}}
         <div class="card-body">
           <span class="tag">${{esc(a.source)}}</span>
           <time>${{relativeTime(a.published)}}</time>
           <h2>${{esc(a.title)}}</h2>
+          ${{also}}
           <p class="snippet">${{esc(a.snippet)}}</p>
           <a class="read-link" href="${{esc(safeUrl(a.link))}}" target="_blank" rel="noopener noreferrer">Read full article &#8599;</a>
         </div>`;
@@ -686,10 +756,13 @@ def main() -> int:
         {"checked_at": datetime.now(timezone.utc).isoformat(), "feeds": rows},
         indent=2,
     ))
-    REPORT_HTML.write_text(render_html(all_articles, len(live), len(rows)))
+    deduped = dedupe_articles(all_articles)
+    REPORT_HTML.write_text(render_html(deduped, len(live), len(rows)))
 
+    merged = len(all_articles) - len(deduped)
     print(f"\nwrote {REPORT_MD.name} + {REPORT_JSON.name} + {REPORT_HTML.name} "
-          f"({len(live)}/{len(rows)} usable, {len(all_articles)} articles)")
+          f"({len(live)}/{len(rows)} usable, {len(deduped)} articles, "
+          f"{merged} cross-agency duplicate{'s' if merged != 1 else ''} merged)")
     return 0
 
 
