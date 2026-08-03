@@ -151,6 +151,59 @@ def entry_link(entry) -> str:
 IMG_EXT_RE = re.compile(r"\.(?:jpe?g|png|webp|gif)(?:\?|$)", re.IGNORECASE)
 IMG_TAG_RE = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
 
+# Keyword-based topic tagging -- a stopgap, not real classification. It's a
+# plain word-hit count per topic, so it will misfile anything that doesn't
+# use these words (a profile piece on a cricketer with no match count as
+# "sports" the way a match report would) or double-count wire copy that
+# mixes domains (a "government bails out an airline" story hits both
+# Politics and Business). Order matters only as a tie-break -- first topic
+# reaching the top hit count wins.
+TOPIC_KEYWORDS = {
+    "Politics": [
+        "parliament", "lok sabha", "rajya sabha", "minister", "modi", "bjp",
+        "congress party", "election", "cabinet", "governor", "chief minister",
+        "assembly", "opposition", "bill passed", "supreme court", "high court",
+    ],
+    "Business": [
+        "sensex", "nifty", "stock market", "rupee", "economy", "gdp",
+        "inflation", "rbi", "ipo", "earnings", "quarterly results", "startup",
+        "market cap", "shares", "investors", "trade deal", "tariff",
+    ],
+    "Sports": [
+        "cricket", "match", "tournament", "olympics", "ipl", "football",
+        "hockey", "medal", "world cup", "wicket", "innings", "goal scored",
+        "tennis", "badminton", "athlete",
+    ],
+    "Entertainment": [
+        "bollywood", "movie", "actor", "actress", "film", "box office",
+        "ott release", "celebrity", "music album", "web series", "trailer",
+    ],
+    "Technology": [
+        "artificial intelligence", " ai ", "smartphone", "app launch",
+        "software", "startup funding", "google", "apple", "meta platforms",
+        "chip", "data breach", "cybersecurity",
+    ],
+    "World": [
+        "united states", "china", "pakistan", "russia", "ukraine",
+        "united nations", "global summit", "foreign policy", "embassy",
+        "president of", "prime minister of",
+    ],
+    "Health": [
+        "covid", "health ministry", "hospital", "vaccine", "disease",
+        "doctor", "outbreak", "who ", "medical",
+    ],
+}
+
+
+def classify_topic(title: str, snippet: str) -> str:
+    text = f" {title.lower()} {snippet.lower()} "
+    best_topic, best_hits = "General", 0
+    for topic, keywords in TOPIC_KEYWORDS.items():
+        hits = sum(1 for kw in keywords if kw in text)
+        if hits > best_hits:
+            best_topic, best_hits = topic, hits
+    return best_topic
+
 
 def entry_image(entry):
     """Best-effort lead image: Media RSS fields first, then an enclosure,
@@ -220,13 +273,16 @@ def check(name: str, url: str):
     row["note"] = "; ".join(notes)
 
     for e, body, t in zip(entries, bodies, entry_times):
+        title = e.get("title") or "(untitled)"
+        snippet = (body[:SNIPPET_LEN] + "…") if len(body) > SNIPPET_LEN else body
         articles.append({
             "source": name,
-            "title": e.get("title") or "(untitled)",
+            "title": title,
             "link": entry_link(e),
             "published": t,
-            "snippet": (body[:SNIPPET_LEN] + "…") if len(body) > SNIPPET_LEN else body,
+            "snippet": snippet,
             "image": entry_image(e),
+            "topic": classify_topic(title, body),
         })
     return row, articles
 
@@ -359,6 +415,7 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
             "link": a["link"],
             "snippet": a["snippet"],
             "image": a.get("image"),
+            "topic": a.get("topic", "General"),
             "published": a["published"].isoformat() if a["published"] else None,
             "hue": source_hue(a["source"]),
             "initials": source_initials(a["source"]),
@@ -413,6 +470,7 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     max-width: 1040px; padding-bottom: 0.15rem; scrollbar-width: none;
   }}
   .filters::-webkit-scrollbar {{ display: none; }}
+  .filters-sub {{ margin-top: 0.45rem; }}
   .filter {{
     flex: none; border: 1px solid var(--border); background: var(--surface);
     color: var(--sub); padding: 0.35rem 0.75rem; border-radius: 999px;
@@ -458,12 +516,15 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     padding: 1.4rem 1.4rem 1.2rem; overflow: hidden;
   }}
   .swipe-card .tag {{
-    align-self: flex-start; background: hsl(var(--hue) 75% 92%); color: hsl(var(--hue) 60% 28%);
+    display: inline-flex; align-self: flex-start; background: hsl(var(--hue) 75% 92%); color: hsl(var(--hue) 60% 28%);
     padding: 0.3rem 0.7rem; border-radius: 999px; font-size: 0.74rem; font-weight: 700;
+    margin-right: 0.35rem;
   }}
   @media (prefers-color-scheme: dark) {{
     .swipe-card .tag {{ background: hsl(var(--hue) 40% 20%); color: hsl(var(--hue) 75% 82%); }}
   }}
+  .swipe-card .topic-tag {{ background: var(--bg); color: var(--sub); border: 1px solid var(--border); }}
+  @media (prefers-color-scheme: dark) {{ .swipe-card .topic-tag {{ background: var(--bg); color: var(--sub); }} }}
   .swipe-card time {{ display: block; color: var(--sub); font-size: 0.78rem; margin: 0.6rem 0 0.9rem; }}
   .swipe-card h2 {{ font-size: 1.25rem; line-height: 1.3; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 0.4rem; }}
   .also-from {{ font-size: 0.74rem; color: var(--sub); margin: 0 0 0.7rem; }}
@@ -528,7 +589,8 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
       <h1>newsdigest</h1>
       <span class="stats" id="stats">{live_count}/{total_count} feeds &middot; {len(articles)} articles</span>
     </div>
-    <nav class="filters" id="filters"></nav>
+    <nav class="filters" id="topic-filters"></nav>
+    <nav class="filters filters-sub" id="filters"></nav>
   </header>
   <div class="layout">
     <div>
@@ -551,16 +613,22 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     const counterEl = document.getElementById('counter');
     const statsEl = document.getElementById('stats');
     const filtersEl = document.getElementById('filters');
+    const topicFiltersEl = document.getElementById('topic-filters');
 
     const sources = [...new Set(all.map(a => a.source))].sort();
+    const topics = [...new Set(all.map(a => a.topic))].sort();
     const SAVED_KEY = 'newsdigest:saved';
     let saved = new Set(JSON.parse(localStorage.getItem(SAVED_KEY) || '[]'));
-    let filter = 'all';
+    let sourceFilter = 'all';
+    let topicFilter = 'all';
     let index = 0;
 
     function jumpToHash() {{
       const pos = all.findIndex(a => a.id === location.hash.slice(1));
-      if (pos >= 0) {{ filter = 'all'; index = pos; renderFilters(); render(); }}
+      if (pos >= 0) {{
+        sourceFilter = 'all'; topicFilter = 'all'; index = pos;
+        renderSourceFilters(); renderTopicFilters(); render();
+      }}
     }}
     if (location.hash) jumpToHash();
     // covers a shared link opened in a tab that already had the page loaded
@@ -595,8 +663,8 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     function toggleSave(id) {{
       if (saved.has(id)) saved.delete(id); else saved.add(id);
       persistSaved();
-      if (filter === '__saved__' && index >= filtered().length) index = 0;
-      renderFilters();
+      if (sourceFilter === '__saved__' && index >= filtered().length) index = 0;
+      renderSourceFilters();
       render();
     }}
 
@@ -610,8 +678,10 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     }}
 
     function filtered() {{
-      if (filter === '__saved__') return all.filter(a => saved.has(a.id));
-      return filter === 'all' ? all : all.filter(a => a.source === filter);
+      let list = sourceFilter === '__saved__' ? all.filter(a => saved.has(a.id))
+        : sourceFilter === 'all' ? all : all.filter(a => a.source === sourceFilter);
+      if (topicFilter !== 'all') list = list.filter(a => a.topic === topicFilter);
+      return list;
     }}
 
     function relativeTime(iso) {{
@@ -626,18 +696,29 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
       return new Date(iso).toLocaleDateString(undefined, {{ month: 'short', day: 'numeric' }});
     }}
 
-    function renderFilters() {{
-      const chip = (label, value, hue) =>
-        `<button class="filter${{value === filter ? ' active' : ''}}" data-filter="${{esc(value)}}"` +
+    function renderSourceFilters() {{
+      const chip = (label, value, active, hue) =>
+        `<button class="filter${{active ? ' active' : ''}}" data-filter="${{esc(value)}}"` +
         (hue !== undefined ? ` style="--hue:${{hue}}"` : '') + `>${{label}}</button>`;
-      let html = chip('All', 'all');
-      html += chip(`&#9733; Saved <span class="count">${{saved.size}}</span>`, '__saved__');
+      let html = chip('All', 'all', sourceFilter === 'all');
+      html += chip(`&#9733; Saved <span class="count">${{saved.size}}</span>`, '__saved__', sourceFilter === '__saved__');
       for (const s of sources) {{
         const count = all.filter(a => a.source === s).length;
         const hue = all.find(a => a.source === s).hue;
-        html += chip(`${{esc(s)}} <span class="count">${{count}}</span>`, s, hue);
+        html += chip(`${{esc(s)}} <span class="count">${{count}}</span>`, s, sourceFilter === s, hue);
       }}
       filtersEl.innerHTML = html;
+    }}
+
+    function renderTopicFilters() {{
+      const chip = (label, value, active) =>
+        `<button class="filter topic-filter${{active ? ' active' : ''}}" data-topic="${{esc(value)}}">${{label}}</button>`;
+      let html = chip('All topics', 'all', topicFilter === 'all');
+      for (const t of topics) {{
+        const count = all.filter(a => a.topic === t).length;
+        html += chip(`${{esc(t)}} <span class="count">${{count}}</span>`, t, topicFilter === t);
+      }}
+      topicFiltersEl.innerHTML = html;
     }}
 
     function renderQueue() {{
@@ -663,6 +744,7 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
         ${{img}}
         <div class="card-body">
           <span class="tag">${{esc(a.source)}}</span>
+          <span class="tag topic-tag">${{esc(a.topic)}}</span>
           <time>${{relativeTime(a.published)}}</time>
           <h2>${{esc(a.title)}}</h2>
           ${{also}}
@@ -747,9 +829,18 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     filtersEl.addEventListener('click', (e) => {{
       const btn = e.target.closest('.filter');
       if (!btn) return;
-      filter = btn.dataset.filter;
+      sourceFilter = btn.dataset.filter;
       index = 0;
-      renderFilters();
+      renderSourceFilters();
+      render();
+    }});
+
+    topicFiltersEl.addEventListener('click', (e) => {{
+      const btn = e.target.closest('.filter');
+      if (!btn) return;
+      topicFilter = btn.dataset.topic;
+      index = 0;
+      renderTopicFilters();
       render();
     }});
 
@@ -771,7 +862,8 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
       else if (e.key === 'ArrowLeft') goBack();
     }});
 
-    renderFilters();
+    renderSourceFilters();
+    renderTopicFilters();
     render();
   }})();
   </script>

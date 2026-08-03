@@ -12,9 +12,14 @@ produces something worth using on its own: a swipeable card deck
 (`reports/index.html`, published via Pages) of every article the live feeds
 are currently carrying — title, source, time, a snippet, and a lead image
 where the feed has one. Drag or use the arrow keys to move between articles;
-tap "Read full article" to open one. That's a byproduct of validating the
-feeds, not the end goal — see Pass marks below for what actually decides if
-this experiment succeeds.
+tap "Read full article" to open one. Cards are filterable by source or by a
+keyword-guessed topic, near-duplicate headlines from different agencies get
+merged into one card, and each card has a save-for-later star and a share
+button (deep-links back to that exact card on our own page, not the source,
+so the digest itself stays visible when shared). The workflow runs hourly on
+its own, or on demand from the Actions tab. That's all a byproduct of
+validating the feeds, not the end goal — see Pass marks below for what
+actually decides if this experiment succeeds.
 
 ## Pass marks (fixed before the build, so they can't be rationalised later)
 
@@ -47,15 +52,31 @@ That keeps the tuning loop at seconds rather than minutes.
 
 ## Running the feed check
 
+Runs automatically every hour (`schedule` trigger), or on demand from
 Actions tab → **Check feeds** → **Run workflow**. Takes about a minute.
 Writes `reports/feed_check.md`, `reports/feed_check.json`, and
 `reports/index.html`, and pushes them back to the repo.
+
+GitHub disables `schedule` triggers on a repo after 60 days with no activity
+at all (any push resets the clock) — re-enable it from the Actions tab if a
+long-idle repo stops running.
 
 The workflow also deploys `reports/` to GitHub Pages. **One-time setup:**
 Settings → Pages → Source → **GitHub Actions**. After that, the run's job
 summary links straight to the deck.
 
 Feeds marked DEAD or STALE get deleted from `feeds.yaml` or their URL fixed.
+
+## Topics
+
+Each article gets a topic tag (Politics, Business, Sports, Entertainment,
+Technology, World, Health, or General) from a plain keyword-hit count over
+the title and snippet — see `TOPIC_KEYWORDS` in `pipeline/check_feeds.py`.
+It's a stopgap, not classification: a story with none of the listed words
+falls back to General, and a story that genuinely spans two topics (a
+government bailout of an airline, say) gets whichever topic's keywords hit
+more, not both. Add/adjust keywords there directly; there's no config file
+for it yet.
 
 ## Judgments
 
@@ -94,6 +115,13 @@ makes it an experiment rather than a hobby project.
   page's `esc()` first, and article/image URLs go through `safeUrl()` (only
   `http`/`https` pass) — otherwise a hostile feed's `<title>` or `<link>`
   becomes script execution or a `javascript:` URI in someone's browser.
+- `dedupe_articles`'s cross-agency merge only compares articles within
+  `DEDUPE_WINDOW_HOURS` of each other. Without that guard, a recurring
+  generic headline ("Sensex closes higher") from the same publisher on two
+  different days would merge across days and silently eat a real story.
+- Article `id` is `sha1(link)[:10]` — stable across runs as long as the
+  publisher URL doesn't change, which is what both the share deep-link
+  (`#<id>`) and the saved-articles list in `localStorage` key off of.
 
 ## QA performed
 
