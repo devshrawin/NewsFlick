@@ -16,6 +16,7 @@ Per feed we record:
 
 import calendar
 import difflib
+import hashlib
 import html
 import json
 import re
@@ -352,6 +353,7 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
 
     payload = [
         {
+            "id": hashlib.sha1(a["link"].encode()).hexdigest()[:10],
             "source": a["source"],
             "title": a["title"],
             "link": a["link"],
@@ -421,6 +423,14 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
   .filter:active {{ transform: scale(0.95); }}
   .filter.active {{ background: hsl(var(--hue, 250) 70% 50%); color: #fff; border-color: transparent; }}
   .filter[data-filter="all"].active {{ background: var(--accent); }}
+  .filter[data-filter="__saved__"].active {{ background: #f5a623; }}
+  .toast {{
+    position: fixed; bottom: 1.3rem; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: var(--bg); padding: 0.6rem 1.1rem; border-radius: 999px;
+    font-size: 0.85rem; opacity: 0; pointer-events: none; z-index: 50;
+    transition: opacity .2s ease, transform .2s ease;
+  }}
+  .toast.show {{ opacity: 1; transform: translateX(-50%) translateY(0); }}
 
   .layout {{
     max-width: 1040px; margin: 0 auto; padding: 1.5rem 1rem 2.5rem;
@@ -465,6 +475,16 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     align-self: flex-start; margin-top: 0.9rem; font-size: 0.86rem; font-weight: 700;
     color: var(--accent); text-decoration: none; touch-action: auto;
   }}
+  .card-actions {{ position: absolute; top: 0.7rem; right: 0.7rem; z-index: 5; display: flex; gap: 0.4rem; }}
+  .icon-btn {{
+    width: 2.15rem; height: 2.15rem; border-radius: 50%; border: none; cursor: pointer;
+    background: rgba(255,255,255,.85); color: #1a1a1a; font-size: 1.05rem;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,.18); touch-action: auto;
+  }}
+  @media (prefers-color-scheme: dark) {{ .icon-btn {{ background: rgba(40,41,46,.85); color: #f0f0f2; }} }}
+  .icon-btn.saved {{ color: #f5a623; }}
+  .icon-btn:active {{ transform: scale(0.9); }}
   .read-link:hover {{ text-decoration: underline; }}
   .end-card {{ align-items: center; justify-content: center; text-align: center; cursor: default; padding: 1.4rem; }}
   .end-card .big {{ font-size: 2.6rem; margin-bottom: 0.4rem; }}
@@ -518,7 +538,7 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
         <button class="ctrl-btn" id="btn-next" title="Next">&#8250;</button>
       </div>
       <div class="counter" id="counter"></div>
-      <div class="kbd-hint">&larr; / &rarr; to move between articles &middot; "Read full article" opens it in a new tab</div>
+      <div class="kbd-hint">&larr; / &rarr; to move between articles &middot; &#9734; saves it &middot; &#8646; shares a link back to this card</div>
     </div>
     <aside class="queue" id="queue"><h3>Up next</h3><div id="queue-list"></div></aside>
   </div>
@@ -533,8 +553,52 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     const filtersEl = document.getElementById('filters');
 
     const sources = [...new Set(all.map(a => a.source))].sort();
+    const SAVED_KEY = 'newsdigest:saved';
+    let saved = new Set(JSON.parse(localStorage.getItem(SAVED_KEY) || '[]'));
     let filter = 'all';
     let index = 0;
+
+    function jumpToHash() {{
+      const pos = all.findIndex(a => a.id === location.hash.slice(1));
+      if (pos >= 0) {{ filter = 'all'; index = pos; renderFilters(); render(); }}
+    }}
+    if (location.hash) jumpToHash();
+    // covers a shared link opened in a tab that already had the page loaded
+    window.addEventListener('hashchange', jumpToHash);
+
+    function persistSaved() {{ localStorage.setItem(SAVED_KEY, JSON.stringify([...saved])); }}
+
+    function toast(msg) {{
+      let t = document.getElementById('toast');
+      if (!t) {{
+        t = document.createElement('div');
+        t.id = 'toast';
+        t.className = 'toast';
+        document.body.appendChild(t);
+      }}
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => t.classList.remove('show'), 1800);
+    }}
+
+    function shareArticle(a) {{
+      const url = `${{location.origin}}${{location.pathname}}#${{a.id}}`;
+      const text = `${{a.title}} — via newsdigest`;
+      if (navigator.share) {{
+        navigator.share({{ title: a.title, text, url }}).catch(() => {{}});
+      }} else if (navigator.clipboard) {{
+        navigator.clipboard.writeText(`${{text}}\n${{url}}`).then(() => toast('Link copied'));
+      }}
+    }}
+
+    function toggleSave(id) {{
+      if (saved.has(id)) saved.delete(id); else saved.add(id);
+      persistSaved();
+      if (filter === '__saved__' && index >= filtered().length) index = 0;
+      renderFilters();
+      render();
+    }}
 
     function esc(s) {{
       return String(s ?? '').replace(/[&<>"']/g, c => (
@@ -546,6 +610,7 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     }}
 
     function filtered() {{
+      if (filter === '__saved__') return all.filter(a => saved.has(a.id));
       return filter === 'all' ? all : all.filter(a => a.source === filter);
     }}
 
@@ -566,6 +631,7 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
         `<button class="filter${{value === filter ? ' active' : ''}}" data-filter="${{esc(value)}}"` +
         (hue !== undefined ? ` style="--hue:${{hue}}"` : '') + `>${{label}}</button>`;
       let html = chip('All', 'all');
+      html += chip(`&#9733; Saved <span class="count">${{saved.size}}</span>`, '__saved__');
       for (const s of sources) {{
         const count = all.filter(a => a.source === s).length;
         const hue = all.find(a => a.source === s).hue;
@@ -588,7 +654,12 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
         onerror="this.closest('.card-image').style.display='none'"></div>` : '';
       const also = (a.alsoFrom && a.alsoFrom.length)
         ? `<div class="also-from">+ ${{a.alsoFrom.map(esc).join(', ')}}</div>` : '';
+      const isSaved = saved.has(a.id);
       return `
+        <div class="card-actions">
+          <button class="icon-btn save-btn${{isSaved ? ' saved' : ''}}" data-id="${{a.id}}" title="Save for later">${{isSaved ? '&#9733;' : '&#9734;'}}</button>
+          <button class="icon-btn share-btn" data-id="${{a.id}}" title="Share">&#8646;</button>
+        </div>
         ${{img}}
         <div class="card-body">
           <span class="tag">${{esc(a.source)}}</span>
@@ -664,7 +735,7 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
       }}
 
       card.addEventListener('pointerdown', (e) => {{
-        if (e.target.closest('.read-link')) return;   // let the link navigate normally
+        if (e.target.closest('.read-link, .card-actions')) return;   // let links/buttons act normally
         dx = 0; dy = 0;
         startX = e.clientX; startY = e.clientY;
         card.classList.add('dragging');
@@ -684,6 +755,16 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
 
     document.getElementById('btn-prev').addEventListener('click', goBack);
     document.getElementById('btn-next').addEventListener('click', advance);
+
+    stage.addEventListener('click', (e) => {{
+      const saveBtn = e.target.closest('.save-btn');
+      const shareBtn = e.target.closest('.share-btn');
+      if (saveBtn) toggleSave(saveBtn.dataset.id);
+      else if (shareBtn) {{
+        const a = all.find(x => x.id === shareBtn.dataset.id);
+        if (a) shareArticle(a);
+      }}
+    }});
 
     document.addEventListener('keydown', (e) => {{
       if (e.key === 'ArrowRight') advance();
