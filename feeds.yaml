@@ -1,0 +1,50 @@
+# India news feeds for the 2-week clustering test.
+# Chosen for MAXIMUM OVERLAP, not coverage. The same PTI story arriving
+# ten times is the point — that's what the clustering is being tested on.
+#
+# These URLs are best-effort. Run the feed-check workflow to find out
+# which are actually alive; delete or fix the dead ones.
+
+feeds:
+  - name: The Hindu
+    url: https://www.thehindu.com/news/national/feeder/default.rss
+  - name: The Hindu (Top)
+    url: https://www.thehindu.com/feeder/default.rss
+  - name: Indian Express
+    url: https://indianexpress.com/section/india/feed/
+  - name: Hindustan Times
+    url: https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml
+  - name: Times of India
+    url: https://timesofindia.indiatimes.com/rssfeedstopstories.cms
+  - name: NDTV
+    url: https://feeds.feedburner.com/ndtvnews-india-news
+  - name: News18
+    url: https://www.news18.com/rss/india.xml
+  - name: India Today
+    url: https://www.indiatoday.in/rss/1206578
+  - name: Firstpost
+    url: https://www.firstpost.com/rss/india.xml
+  - name: ThePrint
+    url: https://theprint.in/feed/
+  - name: Scroll
+    url: https://scroll.in/feed
+  - name: The Wire
+    url: https://thewire.in/rss
+  - name: Deccan Herald
+    url: https://www.deccanherald.com/rss/national.rss
+  - name: Telegraph India
+    url: https://www.telegraphindia.com/feeds/rss.jsp?id=3
+  - name: The Tribune
+    url: https://www.tribuneindia.com/rss/feed?catId=8
+  - name: Livemint
+    url: https://www.livemint.com/rss/news
+  - name: Business Standard
+    url: https://www.business-standard.com/rss/home_page_top_stories.rss
+  - name: Economic Times
+    url: https://economictimes.indiatimes.com/rssfeedstopstories.cms
+  - name: Moneycontrol
+    url: https://www.moneycontrol.com/rss/latestnews.xml
+  - name: Free Press Journal
+    url: https://www.freepressjournal.in/stories.rss
+  - name: Deccan Chronicle
+    url: https://www.deccanchronicle.com/rss_feed/

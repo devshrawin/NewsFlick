@@ -1,0 +1,59 @@
+name: Check feeds
+
+# Manual only. Tap Actions -> Check feeds -> Run workflow.
+# No API keys needed.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Check feeds
+        run: python pipeline/check_feeds.py
+
+      - name: Commit report
+        run: |
+          set -euo pipefail
+          git config user.name  "feed-check-bot"
+          git config user.email "actions@github.com"
+          git add reports/
+          if git diff --staged --quiet; then
+            echo "No change in report — nothing to commit."
+            exit 0
+          fi
+          git commit -m "feed check $(date -u '+%Y-%m-%d %H:%M')"
+          # Push directly. Only if that's rejected do we rebase and retry once.
+          # An unconditional 'git pull --rebase' here is what silently swallowed
+          # the push in testing, leaving a green job with no report delivered.
+          if ! git push origin "HEAD:${GITHUB_REF_NAME}"; then
+            echo "Push rejected — rebasing onto origin/${GITHUB_REF_NAME} and retrying."
+            git fetch origin "${GITHUB_REF_NAME}"
+            git rebase "origin/${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+          echo "Report pushed."
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Feed check" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f reports/feed_check.md ]; then
+            head -12 reports/feed_check.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No report produced — check the 'Check feeds' step log." >> "$GITHUB_STEP_SUMMARY"
+          fi
