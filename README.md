@@ -144,8 +144,12 @@ End-to-end, not just unit-level:
   `<script>` source name, an `onerror`-bearing title, and `javascript:` link
   and image URLs — all rendered as inert text, nothing executed.
 
-**Not covered:** the 21 real publisher feeds. They cannot be reached from the
-environment this was built in, so their URLs, block behaviour, and body shapes
-are unverified until the workflow runs for real — including whether their
-images actually resolve, and whether real headline/snippet text ever breaks
-the deck layout in a way synthetic fixtures didn't catch.
+**Update 2026-08-03:** all 32 feeds now in `feeds.yaml` were reachable and
+validated from this dev environment (27 OK, 5 STALE-but-alive, 0 dead) — a
+big batch of ~60 candidate URLs pulled from elsewhere came back 29 dead
+(moved, 403/404, or in Reuters/AP's case, publicly discontinued RSS entirely),
+so don't trust a pasted feed list without re-running this check. Still
+unconfirmed: whether the GitHub Actions runner's network/IP gets blocked
+differently than this environment did, whether lead images actually resolve
+at scale, and whether real headline/snippet text ever breaks the deck layout
+in a way synthetic fixtures didn't catch.
