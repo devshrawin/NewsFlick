@@ -561,8 +561,40 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     }}
   }}
 
+  /* Explicit overrides for the in-app theme switch, so a user's choice wins
+     regardless of what the OS/browser reports. Higher specificity than the
+     plain :root above (attribute selector beats none) and than the
+     prefers-color-scheme blocks (media queries don't add specificity), so
+     these apply whenever the JS below sets data-theme -- and are inert
+     (matching nothing) when it doesn't, leaving the media-query behavior as
+     the "Auto" default. */
+  :root[data-theme="dark"] {{
+    color-scheme: dark;
+    --bg: #08090d; --bg-2: #0d0f16; --surface: #16181f; --surface-2: #1b1e27;
+    --ink: #edeef2; --sub: #8f96a6;
+    --line: rgba(255,255,255,.08); --line-2: rgba(255,255,255,.14);
+    --accent: #8b8bf0; --accent-2: #f472b6; --gold: #f0b95c;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-md: 0 2px 6px rgba(0,0,0,.4), 0 12px 24px -14px rgba(0,0,0,.6);
+    --shadow-xl: 0 8px 20px -10px rgba(0,0,0,.6), 0 32px 64px -32px rgba(0,0,0,.8);
+    --glass: rgba(8,9,13,.72); --scrim: rgba(0,0,0,.55);
+  }}
+  :root[data-theme="light"] {{
+    color-scheme: light;
+    --bg: #f6f7fb; --bg-2: #eceef6; --surface: #ffffff; --surface-2: #fbfbfe;
+    --ink: #10111a; --sub: #6a7080;
+    --line: rgba(16,17,26,.08); --line-2: rgba(16,17,26,.14);
+    --accent: #5b5bd6; --accent-2: #d6409f; --gold: #e8a33d;
+    --shadow-sm: 0 1px 2px rgba(16,17,26,.05);
+    --shadow-md: 0 2px 6px rgba(16,17,26,.06), 0 12px 24px -14px rgba(16,17,26,.14);
+    --shadow-xl: 0 8px 20px -10px rgba(16,17,26,.22), 0 32px 64px -32px rgba(16,17,26,.30);
+    --glass: rgba(246,247,251,.72); --scrim: rgba(10,10,16,.4);
+  }}
+
   * {{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }}
-  html, body {{ height: 100%; }}
+  /* Not height:100% -- that forced the page to exactly one viewport tall
+     regardless of content, so the much-shorter desktop landscape cards left
+     a large empty strip below. Content sizes itself now. */
   body {{
     margin: 0;
     font-family: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI Variable Text",
@@ -731,6 +763,16 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
   .section.collapsed .section-panel {{ grid-template-rows: 0fr; }}
   .section.collapsed .section-panel > div {{ opacity: 0; }}
   .section-hint {{ font-size: .72rem; color: var(--sub); margin: 0 0 .55rem; }}
+  .theme-switch {{
+    display: flex; gap: .3rem; margin: 0 1.1rem 1rem; padding: .25rem;
+    background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px;
+  }}
+  .theme-opt {{
+    flex: 1; border: none; background: none; color: var(--sub); cursor: pointer;
+    font: inherit; font-size: .78rem; font-weight: 650; padding: .4rem 0; border-radius: 9px;
+    transition: background .18s var(--out), color .18s;
+  }}
+  .theme-opt.on {{ background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }}
   .drawer-footnote {{
     font-size: .7rem; color: var(--sub); opacity: .75; line-height: 1.4;
     padding: .9rem 1.1rem 0; margin: .3rem 0 0; border-top: 1px solid var(--line);
@@ -853,6 +895,8 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     color: hsl(var(--hue) 72% 74%);
   }}
   @media (prefers-color-scheme: light) {{ .src {{ color: hsl(var(--hue) 52% 40%); }} }}
+  :root[data-theme="light"] .src {{ color: hsl(var(--hue) 52% 40%); }}
+  :root[data-theme="dark"] .src {{ color: hsl(var(--hue) 72% 74%); }}
   .ava {{
     width: 1.4rem; height: 1.4rem; border-radius: 50%; flex: none;
     display: grid; place-items: center;
@@ -1005,6 +1049,14 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     .card:not(.end) h2 {{ -webkit-line-clamp: 2; }}
     .snip {{ -webkit-line-clamp: 2; }}
     .body {{ padding: 1.3rem 1.5rem; }}
+
+    /* The prev/next buttons were sized for the tall mobile card; next to the
+       shorter landscape card they read as oversized, with too much dead
+       space around them. */
+    .ctrls {{ gap: .9rem; margin-top: 1.1rem; }}
+    .rnd {{ width: 2.5rem; height: 2.5rem; }}
+    .rnd svg {{ width: .95rem; height: .95rem; }}
+    .count {{ margin-top: .45rem; }}
   }}
 
   @media (prefers-reduced-motion: reduce) {{
@@ -1053,6 +1105,14 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       </button>
     </div>
     <div class="drawer-body">
+      <div class="section-head" style="cursor:default">
+        <span class="t">Appearance</span>
+      </div>
+      <div class="theme-switch" id="theme-switch" role="group" aria-label="Theme">
+        <button class="theme-opt" data-theme="auto">Auto</button>
+        <button class="theme-opt" data-theme="light">Light</button>
+        <button class="theme-opt" data-theme="dark">Dark</button>
+      </div>
       <div class="section" id="section-topics">
         <button class="section-head" data-toggle="section-topics">
           <span class="t">Interests</span>
@@ -1744,6 +1804,29 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     }});
 
     /* ---------- drawer (collapsible left filter panel) ---------- */
+
+    /* ---------- theme switch (Auto follows the OS via the CSS media
+       query; Light/Dark set data-theme, which the CSS overrides above key
+       off with higher specificity than that media query) ---------- */
+    var THEME_KEY = 'newsdigest:theme';
+    var themeSwitch = document.getElementById('theme-switch');
+    function applyTheme(mode) {{
+      if (mode === 'light' || mode === 'dark') document.documentElement.dataset.theme = mode;
+      else delete document.documentElement.dataset.theme;
+      themeSwitch.querySelectorAll('.theme-opt').forEach(function (b) {{
+        b.classList.toggle('on', b.dataset.theme === mode);
+      }});
+    }}
+    var savedTheme = 'auto';
+    try {{ savedTheme = localStorage.getItem(THEME_KEY) || 'auto'; }} catch (e) {{}}
+    applyTheme(savedTheme);
+    themeSwitch.addEventListener('click', function (e) {{
+      var btn = e.target.closest('.theme-opt');
+      if (!btn) return;
+      var mode = btn.dataset.theme;
+      applyTheme(mode);
+      try {{ localStorage.setItem(THEME_KEY, mode); }} catch (e2) {{}}
+    }});
 
     function setDrawer(open) {{
       drawerEl.classList.toggle('open', open);
