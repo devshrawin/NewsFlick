@@ -465,6 +465,16 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }}
   header .stats {{ color: var(--sub); font-size: 0.76rem; font-weight: 500; }}
+  .freshness {{
+    display: flex; align-items: center; justify-content: space-between;
+    max-width: 1040px; margin: 0.5rem auto 0; font-size: 0.76rem; color: var(--sub);
+  }}
+  .refresh-btn {{
+    border: 1px solid var(--border); background: var(--surface); color: var(--sub);
+    padding: 0.25rem 0.65rem; border-radius: 999px; font-size: 0.74rem; font-weight: 600;
+    cursor: pointer; transition: transform .12s ease;
+  }}
+  .refresh-btn:active {{ transform: scale(0.94); }}
   .filters {{
     display: flex; gap: 0.4rem; overflow-x: auto; margin: 0.75rem auto 0;
     max-width: 1040px; padding-bottom: 0.15rem; scrollbar-width: none;
@@ -583,11 +593,15 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
   @media (prefers-reduced-motion: reduce) {{ .swipe-card {{ transition: none; }} }}
 </style>
 </head>
-<body>
+<body data-generated="{now.isoformat()}">
   <header>
     <div class="titlebar">
       <h1>newsdigest</h1>
       <span class="stats" id="stats">{live_count}/{total_count} feeds &middot; {len(articles)} articles</span>
+    </div>
+    <div class="freshness">
+      <span id="freshness-text"></span>
+      <button class="refresh-btn" id="btn-refresh" title="Check for the latest snapshot">&#8635; Refresh</button>
     </div>
     <nav class="filters" id="topic-filters"></nav>
     <nav class="filters filters-sub" id="filters"></nav>
@@ -633,6 +647,37 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     if (location.hash) jumpToHash();
     // covers a shared link opened in a tab that already had the page loaded
     window.addEventListener('hashchange', jumpToHash);
+
+    // "Refresh" doesn't trigger a new Action run -- there's no server to hold
+    // the token that would take, and a token embedded in a public page is a
+    // bad idea regardless. It re-fetches whatever the hourly cron has
+    // already published, bypassing any stale browser/CDN cache, and is a
+    // no-op (with a toast) if the page is already newer than the cooldown.
+    const REFRESH_COOLDOWN_MIN = 30;
+    const generatedAt = new Date(document.body.dataset.generated);
+
+    function minutesSinceGenerated() {{
+      return (Date.now() - generatedAt.getTime()) / 60000;
+    }}
+
+    function updateFreshnessText() {{
+      const mins = Math.floor(minutesSinceGenerated());
+      const label = mins < 1 ? 'just now' : mins < 60 ? `${{mins}}m ago` : `${{Math.floor(mins / 60)}}h ago`;
+      document.getElementById('freshness-text').textContent = `Updated ${{label}}`;
+    }}
+    updateFreshnessText();
+
+    document.getElementById('btn-refresh').addEventListener('click', () => {{
+      const mins = minutesSinceGenerated();
+      if (mins < REFRESH_COOLDOWN_MIN) {{
+        toast(`Already fresh — updated ${{Math.floor(mins)}}m ago`);
+        return;
+      }}
+      toast('Checking for the latest snapshot…');
+      setTimeout(() => {{
+        location.href = `${{location.pathname}}?t=${{Date.now()}}${{location.hash}}`;
+      }}, 400);
+    }});
 
     function persistSaved() {{ localStorage.setItem(SAVED_KEY, JSON.stringify([...saved])); }}
 
