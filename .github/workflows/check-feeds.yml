@@ -1,14 +1,24 @@
 name: Check feeds
 
-# Manual only. Tap Actions -> Check feeds -> Run workflow.
-# No API keys needed.
+# Runs hourly, or tap Actions -> Check feeds -> Run workflow for an
+# on-demand run. No API keys needed.
+#
+# GitHub disables `schedule` triggers after 60 days with no repo activity
+# (any push/commit resets the clock) -- re-enable from the Actions tab if
+# that happens.
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"
 
 permissions:
   contents: write
   pages: write
   id-token: write
+
+concurrency:
+  group: check-feeds
+  cancel-in-progress: false
 
 jobs:
   check:
