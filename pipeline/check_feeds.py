@@ -481,44 +481,52 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
 <meta name="description" content="A swipeable digest of Indian news, rebuilt every hour.">
 <title>newsdigest</title>
 <style>
+  /* Dark is the default look regardless of system preference -- only an
+     explicit `prefers-color-scheme: light` gets the light palette below.
+     `color-scheme: dark` on :root also tells native form controls and
+     scrollbars to render dark instead of fighting the page. */
   :root {{
-    --bg: #f6f7fb;
-    --bg-2: #eceef6;
-    --surface: #ffffff;
-    --surface-2: #fbfbfe;
-    --ink: #10111a;
-    --sub: #6a7080;
-    --line: rgba(16,17,26,.08);
-    --line-2: rgba(16,17,26,.14);
-    --accent: #5b5bd6;
-    --accent-2: #d6409f;
-    --gold: #e8a33d;
-    --shadow-sm: 0 1px 2px rgba(16,17,26,.05);
-    --shadow-md: 0 2px 6px rgba(16,17,26,.06), 0 12px 24px -14px rgba(16,17,26,.14);
-    --shadow-xl: 0 8px 20px -10px rgba(16,17,26,.22), 0 32px 64px -32px rgba(16,17,26,.30);
-    --glass: rgba(246,247,251,.72);
+    color-scheme: dark;
+    --bg: #08090d;
+    --bg-2: #0d0f16;
+    --surface: #16181f;
+    --surface-2: #1b1e27;
+    --ink: #edeef2;
+    --sub: #8f96a6;
+    --line: rgba(255,255,255,.08);
+    --line-2: rgba(255,255,255,.14);
+    --accent: #8b8bf0;
+    --accent-2: #f472b6;
+    --gold: #f0b95c;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-md: 0 2px 6px rgba(0,0,0,.4), 0 12px 24px -14px rgba(0,0,0,.6);
+    --shadow-xl: 0 8px 20px -10px rgba(0,0,0,.6), 0 32px 64px -32px rgba(0,0,0,.8);
+    --glass: rgba(8,9,13,.72);
+    --scrim: rgba(0,0,0,.55);
     --radius: 22px;
     /* Overshoot for anything that should feel physical; flat-out for the rest. */
     --spring: cubic-bezier(.34, 1.4, .64, 1);
     --out: cubic-bezier(.22, 1, .36, 1);
   }}
-  @media (prefers-color-scheme: dark) {{
+  @media (prefers-color-scheme: light) {{
     :root {{
-      --bg: #08090d;
-      --bg-2: #0d0f16;
-      --surface: #16181f;
-      --surface-2: #1b1e27;
-      --ink: #edeef2;
-      --sub: #8f96a6;
-      --line: rgba(255,255,255,.08);
-      --line-2: rgba(255,255,255,.14);
-      --accent: #8b8bf0;
-      --accent-2: #f472b6;
-      --gold: #f0b95c;
-      --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
-      --shadow-md: 0 2px 6px rgba(0,0,0,.4), 0 12px 24px -14px rgba(0,0,0,.6);
-      --shadow-xl: 0 8px 20px -10px rgba(0,0,0,.6), 0 32px 64px -32px rgba(0,0,0,.8);
-      --glass: rgba(8,9,13,.72);
+      color-scheme: light;
+      --bg: #f6f7fb;
+      --bg-2: #eceef6;
+      --surface: #ffffff;
+      --surface-2: #fbfbfe;
+      --ink: #10111a;
+      --sub: #6a7080;
+      --line: rgba(16,17,26,.08);
+      --line-2: rgba(16,17,26,.14);
+      --accent: #5b5bd6;
+      --accent-2: #d6409f;
+      --gold: #e8a33d;
+      --shadow-sm: 0 1px 2px rgba(16,17,26,.05);
+      --shadow-md: 0 2px 6px rgba(16,17,26,.06), 0 12px 24px -14px rgba(16,17,26,.14);
+      --shadow-xl: 0 8px 20px -10px rgba(16,17,26,.22), 0 32px 64px -32px rgba(16,17,26,.30);
+      --glass: rgba(246,247,251,.72);
+      --scrim: rgba(10,10,16,.4);
     }}
   }}
 
@@ -551,18 +559,32 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     to   {{ transform: translate3d(4%, 3%, 0) scale(1.12); }}
   }}
 
+  /* ---- slim top bar: menu toggle + brand + freshness ---- */
   header {{
     position: sticky; top: 0; z-index: 20;
     background: var(--glass);
     backdrop-filter: saturate(1.6) blur(18px);
     -webkit-backdrop-filter: saturate(1.6) blur(18px);
     border-bottom: 1px solid var(--line);
-    padding: .85rem 1rem .55rem;
+    padding: .7rem 1rem;
   }}
   .bar {{
-    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    display: flex; align-items: center; gap: .7rem;
     max-width: 1100px; margin: 0 auto;
   }}
+  .menu-btn {{
+    flex: none; width: 2.3rem; height: 2.3rem; display: grid; place-items: center;
+    border: 1px solid var(--line-2); background: var(--surface); color: var(--ink);
+    border-radius: 12px; cursor: pointer;
+    transition: transform .18s var(--spring), border-color .18s, background .18s;
+  }}
+  .menu-btn svg {{ width: 1.05rem; height: 1.05rem; }}
+  .menu-btn:hover {{ border-color: var(--accent); }}
+  .menu-btn:active {{ transform: scale(.92); }}
+  .menu-btn .ln {{ transform-origin: center; transition: transform .22s var(--out), opacity .18s; }}
+  .menu-btn.open .ln1 {{ transform: translateY(6px) rotate(45deg); }}
+  .menu-btn.open .ln2 {{ opacity: 0; }}
+  .menu-btn.open .ln3 {{ transform: translateY(-6px) rotate(-45deg); }}
   .brand {{
     display: flex; align-items: center; gap: .5rem;
     font-size: 1.06rem; font-weight: 750; letter-spacing: -.028em;
@@ -577,10 +599,10 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     0%, 70%, 100% {{ box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 55%, transparent); }}
     35% {{ box-shadow: 0 0 0 .42rem transparent; }}
   }}
-  .head-right {{ display: flex; align-items: center; gap: .55rem; }}
+  .head-right {{ display: flex; align-items: center; gap: .55rem; margin-left: auto; }}
   .fresh {{ font-size: .74rem; color: var(--sub); font-variant-numeric: tabular-nums; white-space: nowrap; }}
   /* Feed count is nice-to-know, not worth crowding a phone header. */
-  @media (max-width: 520px) {{ .fresh.sep, .fresh[title] {{ display: none; }} }}
+  @media (max-width: 560px) {{ .fresh.sep, .fresh[title] {{ display: none; }} }}
   .ghost {{
     display: inline-flex; align-items: center; gap: .34rem;
     border: 1px solid var(--line-2); background: var(--surface); color: var(--sub);
@@ -594,15 +616,16 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
   .ghost.spin svg {{ animation: spin .7s var(--out); }}
   @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
 
-  .chips {{
-    display: flex; gap: .38rem; overflow-x: auto; scrollbar-width: none;
-    max-width: 1100px; margin: .6rem auto 0; padding-bottom: .18rem;
-    -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity;
+  .rail {{ max-width: 1100px; margin: .55rem auto 0; height: 2px; background: var(--line); border-radius: 2px; }}
+  .rail i {{
+    display: block; height: 100%; width: 0; border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width .45s var(--out);
   }}
-  .chips::-webkit-scrollbar {{ display: none; }}
-  .chips-sub {{ margin-top: .34rem; }}
+
+  /* ---- chips, shared by the drawer's two sections and the onboarding form ---- */
+  .chipwrap {{ display: flex; flex-wrap: wrap; gap: .4rem; }}
   .chip {{
-    flex: none; scroll-snap-align: start;
     border: 1px solid var(--line-2); background: var(--surface); color: var(--sub);
     padding: .32rem .68rem; border-radius: 999px;
     font: inherit; font-size: .755rem; font-weight: 650; white-space: nowrap; cursor: pointer;
@@ -629,11 +652,92 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     box-shadow: 0 2px 10px -4px color-mix(in oklab, var(--gold) 70%, transparent);
   }}
 
-  .rail {{ max-width: 1100px; margin: .6rem auto 0; height: 2px; background: var(--line); border-radius: 2px; }}
-  .rail i {{
-    display: block; height: 100%; width: 0; border-radius: 2px;
-    background: linear-gradient(90deg, var(--accent), var(--accent-2));
-    transition: width .45s var(--out);
+  /* ---- collapsible left drawer (topics + sources moved out of the top bar) ---- */
+  .scrim {{
+    position: fixed; inset: 0; z-index: 29; background: var(--scrim);
+    opacity: 0; pointer-events: none; transition: opacity .25s var(--out);
+  }}
+  .scrim.show {{ opacity: 1; pointer-events: auto; }}
+  .drawer {{
+    position: fixed; inset: 0 auto 0 0; z-index: 30; width: min(84vw, 320px);
+    background: var(--surface); border-right: 1px solid var(--line);
+    box-shadow: var(--shadow-xl);
+    transform: translateX(-100%); transition: transform .32s var(--out);
+    display: flex; flex-direction: column; overflow: hidden;
+  }}
+  .drawer.open {{ transform: translateX(0); }}
+  .drawer-head {{
+    flex: none; display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.1rem; border-bottom: 1px solid var(--line);
+  }}
+  .drawer-head strong {{ font-size: .95rem; letter-spacing: -.01em; }}
+  .drawer-close {{
+    width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: 10px;
+    border: 1px solid transparent; background: none; color: var(--sub); cursor: pointer;
+  }}
+  .drawer-close:hover {{ color: var(--ink); background: var(--bg-2); }}
+  .drawer-close svg {{ width: 1rem; height: 1rem; }}
+  .drawer-body {{ flex: 1; overflow-y: auto; padding: .4rem 0 1.4rem; }}
+
+  .section-head {{
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+    padding: .9rem 1.1rem .5rem; border: none; background: none; cursor: pointer;
+    font: inherit; color: var(--ink); text-align: left;
+  }}
+  .section-head span.t {{
+    font-size: .7rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; color: var(--sub);
+  }}
+  .section-head svg {{
+    width: .85rem; height: .85rem; color: var(--sub);
+    transition: transform .25s var(--out);
+  }}
+  .section.collapsed .section-head svg {{ transform: rotate(-90deg); }}
+  .section-panel {{
+    padding: .1rem 1.1rem 1rem;
+    display: grid; grid-template-rows: 1fr; transition: grid-template-rows .28s var(--out);
+  }}
+  .section-panel > div {{ overflow: hidden; }}
+  .section.collapsed .section-panel {{ grid-template-rows: 0fr; }}
+  .section.collapsed .section-panel > div {{ opacity: 0; }}
+  .section-hint {{ font-size: .72rem; color: var(--sub); margin: 0 0 .55rem; }}
+
+  /* ---- first-run "what do you care about" onboarding form ---- */
+  .onb-scrim {{
+    position: fixed; inset: 0; z-index: 50; background: var(--scrim);
+    display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .28s var(--out);
+  }}
+  .onb-scrim.show {{ opacity: 1; pointer-events: auto; }}
+  .onb {{
+    width: 100%; max-width: 480px; max-height: 86vh; overflow-y: auto;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 26px 26px 0 0; box-shadow: var(--shadow-xl);
+    padding: 1.6rem 1.4rem calc(1.4rem + env(safe-area-inset-bottom, 0px));
+    transform: translateY(24px); transition: transform .32s var(--spring);
+  }}
+  .onb-scrim.show .onb {{ transform: translateY(0); }}
+  .onb h2 {{ margin: 0 0 .3rem; font-size: 1.25rem; letter-spacing: -.02em; }}
+  .onb p {{ margin: 0 0 1.1rem; color: var(--sub); font-size: .86rem; }}
+  .onb .chipwrap {{ margin-bottom: 1.3rem; }}
+  .onb .chip {{ font-size: .82rem; padding: .42rem .8rem; }}
+  .onb-actions {{ display: flex; align-items: center; justify-content: space-between; gap: 1rem; }}
+  .onb-skip {{
+    border: none; background: none; color: var(--sub); font: inherit; font-size: .82rem;
+    font-weight: 650; cursor: pointer; padding: .5rem 0;
+  }}
+  .onb-skip:hover {{ color: var(--ink); text-decoration: underline; }}
+  .onb-go {{
+    border: none; border-radius: 999px; padding: .68rem 1.35rem; cursor: pointer;
+    font: inherit; font-size: .88rem; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 4px 16px -6px color-mix(in oklab, var(--accent) 60%, transparent);
+    transition: transform .18s var(--spring);
+  }}
+  .onb-go:active {{ transform: scale(.96); }}
+
+  @media (min-width: 640px) {{
+    .onb-scrim {{ align-items: center; }}
+    .onb {{ border-radius: 26px; }}
   }}
 
   .layout {{
@@ -644,7 +748,11 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
 
   .stage {{
     position: relative;
-    height: clamp(420px, 62vh, 560px);
+    /* Leaves clear room below the card for .ctrls -- this used to be tall
+       enough that the card's own drop shadow visually ran into the prev/next
+       buttons on short viewports. */
+    height: clamp(380px, 54vh, 500px);
+    margin-bottom: .4rem;
     perspective: 1400px;
   }}
 
@@ -653,7 +761,10 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     width: min(94%, 400px); height: 100%;
     display: flex; flex-direction: column; overflow: hidden;
     background: var(--surface); border: 1px solid var(--line);
-    border-radius: var(--radius); box-shadow: var(--shadow-xl);
+    border-radius: var(--radius);
+    /* A tighter shadow than --shadow-xl -- that one's 64px-blur layer bled far
+       enough below the card to visually run into the prev/next buttons. */
+    box-shadow: 0 6px 14px -8px rgba(0,0,0,.35), 0 18px 34px -20px rgba(0,0,0,.4);
     transform-origin: 50% 100%;
     will-change: transform, opacity;
     animation: cardIn .5s var(--out) both;
@@ -694,9 +805,9 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
   .src {{
     display: inline-flex; align-items: center; gap: .38rem;
     font-size: .735rem; font-weight: 700; letter-spacing: -.005em;
-    color: hsl(var(--hue) 52% 40%);
+    color: hsl(var(--hue) 72% 74%);
   }}
-  @media (prefers-color-scheme: dark) {{ .src {{ color: hsl(var(--hue) 72% 74%); }} }}
+  @media (prefers-color-scheme: light) {{ .src {{ color: hsl(var(--hue) 52% 40%); }} }}
   .ava {{
     width: 1.4rem; height: 1.4rem; border-radius: 50%; flex: none;
     display: grid; place-items: center;
@@ -762,7 +873,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
   .end h2 {{ -webkit-line-clamp: unset; margin-bottom: .3rem; }}
   .end p {{ color: var(--sub); font-size: .88rem; margin: 0 0 1rem; }}
 
-  .ctrls {{ display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1.15rem; }}
+  .ctrls {{ display: flex; align-items: center; justify-content: center; gap: 1.3rem; margin-top: 1.8rem; position: relative; z-index: 2; }}
   .rnd {{
     width: 3.15rem; height: 3.15rem; border-radius: 50%; display: grid; place-items: center;
     border: 1px solid var(--line-2); background: var(--surface); color: var(--ink);
@@ -834,6 +945,13 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
 
   <header>
     <div class="bar">
+      <button class="menu-btn" id="menu-btn" aria-label="Open filters" aria-expanded="false" aria-controls="drawer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+          <line class="ln ln1" x1="4" y1="7" x2="20" y2="7"/>
+          <line class="ln ln2" x1="4" y1="14" x2="20" y2="14"/>
+          <line class="ln ln3" x1="4" y1="17" x2="20" y2="17"/>
+        </svg>
+      </button>
       <div class="brand"><span class="dot" aria-hidden="true"></span> newsdigest</div>
       <div class="head-right">
         <span class="fresh" title="{sourced_count} of {total_count} feeds contributed at least one article to this deck. Feed-by-feed health lives in reports/feed_check.md.">{sourced_count}/{total_count} feeds</span>
@@ -847,10 +965,39 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         </button>
       </div>
     </div>
-    <nav class="chips" id="topics" aria-label="Filter by topic"></nav>
-    <nav class="chips chips-sub" id="sources" aria-label="Filter by source"></nav>
     <div class="rail"><i id="rail"></i></div>
   </header>
+
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" id="drawer" aria-label="Filters">
+    <div class="drawer-head">
+      <strong>Filters</strong>
+      <button class="drawer-close" id="drawer-close" aria-label="Close filters">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="drawer-body">
+      <div class="section" id="section-topics">
+        <button class="section-head" data-toggle="section-topics">
+          <span class="t">Interests</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="section-panel"><div>
+          <p class="section-hint">Pick as many as you like -- leave empty to see everything.</p>
+          <nav class="chipwrap" id="topics" aria-label="Filter by topic"></nav>
+        </div></div>
+      </div>
+      <div class="section" id="section-sources">
+        <button class="section-head" data-toggle="section-sources">
+          <span class="t">Sources</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="section-panel"><div>
+          <nav class="chipwrap" id="sources" aria-label="Filter by source"></nav>
+        </div></div>
+      </div>
+    </div>
+  </aside>
 
   <div class="layout">
     <div>
@@ -876,6 +1023,18 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <div class="onb-scrim" id="onb-scrim">
+    <div class="onb" role="dialog" aria-modal="true" aria-labelledby="onb-title">
+      <h2 id="onb-title">What do you want to see?</h2>
+      <p>Pick a few topics to lead with. You can change this anytime from the filter drawer.</p>
+      <nav class="chipwrap" id="onb-topics" aria-label="Choose topics"></nav>
+      <div class="onb-actions">
+        <button class="onb-skip" id="onb-skip">Skip, show everything</button>
+        <button class="onb-go" id="onb-go">Save preferences</button>
+      </div>
+    </div>
+  </div>
+
   <script id="data" type="application/json">{data_json}</script>
   <script>
   (function () {{
@@ -891,6 +1050,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     var stage = document.getElementById('stage');
     var topicsEl = document.getElementById('topics');
     var sourcesEl = document.getElementById('sources');
+    var onbTopicsEl = document.getElementById('onb-topics');
     var qlist = document.getElementById('qlist');
     var countEl = document.getElementById('count');
     var railEl = document.getElementById('rail');
@@ -898,6 +1058,9 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     var toastEl = document.getElementById('toast');
     var prevBtn = document.getElementById('prev');
     var nextBtn = document.getElementById('next');
+    var menuBtn = document.getElementById('menu-btn');
+    var drawerEl = document.getElementById('drawer');
+    var scrimEl = document.getElementById('scrim');
 
     var SAVED_KEY = 'newsdigest:saved';
     var saved = new Set();
@@ -905,6 +1068,21 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       var raw = JSON.parse(localStorage.getItem(SAVED_KEY) || '[]');
       if (Array.isArray(raw)) saved = new Set(raw);
     }} catch (e) {{}}
+
+    // Interests are multi-select ("as many topics as you like"), unlike the
+    // single-select source filter -- an empty set means no topic filtering at
+    // all, not "match nothing".
+    var INTERESTS_KEY = 'newsdigest:interests';
+    var ONBOARDED_KEY = 'newsdigest:onboarded';
+    var interests = new Set();
+    try {{
+      var rawI = JSON.parse(localStorage.getItem(INTERESTS_KEY) || '[]');
+      if (Array.isArray(rawI)) interests = new Set(rawI);
+    }} catch (e) {{}}
+
+    function persistInterests() {{
+      try {{ localStorage.setItem(INTERESTS_KEY, JSON.stringify(Array.from(interests))); }} catch (e) {{}}
+    }}
 
     var sources = Array.from(new Set(all.map(function (a) {{ return a.source; }}))).sort();
     var topics = Array.from(new Set(all.map(function (a) {{ return a.topic; }}))).sort();
@@ -923,9 +1101,15 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         try {{ localStorage.setItem(SAVED_KEY, JSON.stringify(kept)); }} catch (e) {{}}
       }}
     }})();
+    // Same idea for interests: a topic that no longer appears in this
+    // snapshot would otherwise sit in the set forever, filtering nothing.
+    (function pruneInterests() {{
+      var live = new Set(topics);
+      var kept = Array.from(interests).filter(function (t) {{ return live.has(t); }});
+      if (kept.length !== interests.size) {{ interests = new Set(kept); persistInterests(); }}
+    }})();
 
     var sourceFilter = 'all';
-    var topicFilter = 'all';
     var index = 0;
     var busy = false;   // an exit animation owns the deck; ignore new input
     var renderSeq = 0;  // bumped per render so a finished fly-out can tell if
@@ -944,7 +1128,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       var list = sourceFilter === '__saved__'
         ? all.filter(function (a) {{ return saved.has(a.id); }})
         : sourceFilter === 'all' ? all : all.filter(function (a) {{ return a.source === sourceFilter; }});
-      if (topicFilter !== 'all') list = list.filter(function (a) {{ return a.topic === topicFilter; }});
+      if (interests.size) list = list.filter(function (a) {{ return interests.has(a.topic); }});
       return list;
     }}
 
@@ -983,13 +1167,32 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         + ' aria-pressed="' + (on ? 'true' : 'false') + '">' + label + '</button>';
     }}
 
-    function renderTopics() {{
-      var h = chip('All topics', 'data-t', 'all', topicFilter === 'all', undefined, 0);
+    // Renders the same multi-select topic chips into any container (the
+    // drawer's #topics and the onboarding form's #onb-topics both use this,
+    // so toggling in either place has to re-render both).
+    function renderInterestChipsInto(el) {{
+      if (!el) return;
+      var h = chip('All topics', 'data-t', 'all', interests.size === 0, undefined, 0);
       topics.forEach(function (t, i) {{
         var n = all.filter(function (a) {{ return a.topic === t; }}).length;
-        h += chip(esc(t) + ' <span class="n">' + n + '</span>', 'data-t', t, topicFilter === t, undefined, i + 1);
+        h += chip(esc(t) + ' <span class="n">' + n + '</span>', 'data-t', t, interests.has(t), undefined, i + 1);
       }});
-      topicsEl.innerHTML = h;
+      el.innerHTML = h;
+    }}
+
+    function renderTopics() {{
+      renderInterestChipsInto(topicsEl);
+      renderInterestChipsInto(onbTopicsEl);
+    }}
+
+    function toggleInterest(topic) {{
+      if (topic === 'all') {{ interests.clear(); }}
+      else if (interests.has(topic)) {{ interests.delete(topic); }}
+      else {{ interests.add(topic); }}
+      persistInterests();
+      index = 0;
+      renderTopics();
+      render();
     }}
 
     function renderSources() {{
@@ -1253,11 +1456,15 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     topicsEl.addEventListener('click', function (e) {{
       var btn = e.target.closest('.chip');
       if (!btn) return;
-      topicFilter = btn.dataset.t;
-      index = 0;
-      renderTopics();
-      render();
+      toggleInterest(btn.dataset.t);
     }});
+    if (onbTopicsEl) {{
+      onbTopicsEl.addEventListener('click', function (e) {{
+        var btn = e.target.closest('.chip');
+        if (!btn) return;
+        toggleInterest(btn.dataset.t);
+      }});
+    }}
 
     sourcesEl.addEventListener('click', function (e) {{
       var btn = e.target.closest('.chip');
@@ -1297,7 +1504,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       if (!id) return false;
       // Clear filters first: a shared card may not be in the current view.
       if (!all.some(function (a) {{ return a.id === id; }})) return false;
-      sourceFilter = 'all'; topicFilter = 'all';
+      sourceFilter = 'all'; interests.clear();
       index = filtered().findIndex(function (a) {{ return a.id === id; }});
       if (index < 0) index = 0;
       renderTopics(); renderSources(); render();
@@ -1337,11 +1544,64 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       }}, 420);
     }});
 
+    /* ---------- drawer (collapsible left filter panel) ---------- */
+
+    function setDrawer(open) {{
+      drawerEl.classList.toggle('open', open);
+      scrimEl.classList.toggle('show', open);
+      menuBtn.classList.toggle('open', open);
+      menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }}
+    menuBtn.addEventListener('click', function () {{
+      setDrawer(!drawerEl.classList.contains('open'));
+    }});
+    scrimEl.addEventListener('click', function () {{ setDrawer(false); }});
+    document.getElementById('drawer-close').addEventListener('click', function () {{ setDrawer(false); }});
+    document.addEventListener('keydown', function (e) {{
+      if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false);
+    }});
+
+    // Interests and Sources each collapse independently ("same for both") via
+    // a shared data-toggle attribute naming the section id to fold.
+    document.querySelectorAll('[data-toggle]').forEach(function (btn) {{
+      btn.addEventListener('click', function () {{
+        var section = document.getElementById(btn.dataset.toggle);
+        if (section) section.classList.toggle('collapsed');
+      }});
+    }});
+
+    /* ---------- onboarding: "what do you want to see" first-run form ---------- */
+
+    var onbScrim = document.getElementById('onb-scrim');
+
+    function closeOnboarding() {{
+      onbScrim.classList.remove('show');
+      try {{ localStorage.setItem(ONBOARDED_KEY, '1'); }} catch (e) {{}}
+    }}
+    document.getElementById('onb-skip').addEventListener('click', function () {{
+      interests.clear();
+      persistInterests();
+      renderTopics();
+      render();
+      closeOnboarding();
+    }});
+    document.getElementById('onb-go').addEventListener('click', closeOnboarding);
+    onbScrim.addEventListener('click', function (e) {{
+      if (e.target === onbScrim) closeOnboarding();   // click on the backdrop itself
+    }});
+
     /* ---------- boot ---------- */
 
     renderTopics();
     renderSources();
     if (!jumpToHash()) render();
+
+    var alreadyOnboarded = false;
+    try {{ alreadyOnboarded = !!localStorage.getItem(ONBOARDED_KEY); }} catch (e) {{ alreadyOnboarded = true; }}
+    if (!alreadyOnboarded && topics.length) {{
+      // Let the deck paint first so the form doesn't block first render.
+      setTimeout(function () {{ onbScrim.classList.add('show'); }}, 260);
+    }}
   }})();
   </script>
 </body>

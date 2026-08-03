@@ -12,12 +12,18 @@ produces something worth using on its own: a swipeable card deck
 (`reports/index.html`, published via Pages) of every article the live feeds
 are currently carrying — title, source, time, a snippet, and a lead image
 where the feed has one. Drag or use the arrow keys to move between articles;
-tap "Read full article" to open one. Cards are filterable by source or by a
-keyword-guessed topic, near-duplicate headlines from different agencies get
-merged into one card, and each card has a save-for-later star and a share
-button (deep-links back to that exact card on our own page, not the source,
-so the digest itself stays visible when shared). The workflow runs hourly on
-its own, or on demand from the Actions tab. That's all a byproduct of
+tap "Read full article" to open one. Dark by default (light only if the
+browser explicitly asks for it). A hamburger button opens a collapsible left
+drawer holding two independently-foldable sections: **Interests**, a
+multi-select topic filter (pick as many as you like, or none to see
+everything), and **Sources**, single-select as before. First-time visitors
+get a one-time "what do you want to see" form for Interests; skip it or
+revisit it anytime from the drawer — both write to the same
+`localStorage`-backed selection. Near-duplicate headlines from different
+agencies merge into one card, and each card has a save-for-later star and a
+share button (deep-links back to that exact card on our own page, not the
+source, so the digest itself stays visible when shared). The workflow runs
+hourly on its own, or on demand from the Actions tab. That's all a byproduct of
 validating the feeds, not the end goal — see Pass marks below for what
 actually decides if this experiment succeeds.
 
@@ -195,6 +201,14 @@ End-to-end, not just unit-level:
   the active filter (clears filters and lands on it). Bogus `#hash` ignored
   without blanking the deck. No console errors; no horizontal overflow at
   375 px or 1280 px; dark mode resolves (`color-mix()` computes).
+- Drawer redesign driven through the browser on a real generated page:
+  onboarding form's topic picks reflect live in the drawer's Interests section
+  and vice versa (shared state, not two copies), interests persist across
+  reload without the form reappearing, drawer open/close/backdrop/Escape,
+  independent Interests/Sources section collapse, and confirmed dark is the
+  default palette when the OS reports dark and the light override applies
+  when it explicitly reports light. Card-to-controls gap measured at 28px
+  (mobile) / 15px (desktop) — was visually overlapping before.
 
 **Update 2026-08-03:** all 32 feeds now in `feeds.yaml` were reachable and
 validated from this dev environment (27 OK, 5 STALE-but-alive, 0 dead) — a
