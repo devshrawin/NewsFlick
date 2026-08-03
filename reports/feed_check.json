@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-08-03T06:42:17.357079+00:00",
+  "checked_at": "2026-08-03T07:07:58.283769+00:00",
   "feeds": [
     {
       "name": "The Hindu",
@@ -7,8 +7,8 @@
       "ok": true,
       "note": "",
       "entries": 60,
-      "age_hours": 0.2,
-      "median_chars": 135,
+      "age_hours": 0.1,
+      "median_chars": 137,
       "dated": 60,
       "verdict": "OK"
     },
@@ -18,8 +18,8 @@
       "ok": true,
       "note": "",
       "entries": 60,
-      "age_hours": 0.2,
-      "median_chars": 140,
+      "age_hours": 0.1,
+      "median_chars": 141,
       "dated": 60,
       "verdict": "OK"
     },
@@ -40,7 +40,7 @@
       "ok": true,
       "note": "",
       "entries": 100,
-      "age_hours": 0.2,
+      "age_hours": 0.4,
       "median_chars": 142,
       "dated": 100,
       "verdict": "OK"
@@ -50,10 +50,10 @@
       "url": "https://timesofindia.indiatimes.com/rssfeedstopstories.cms",
       "ok": true,
       "note": "",
-      "entries": 45,
-      "age_hours": 0.5,
-      "median_chars": 391,
-      "dated": 45,
+      "entries": 44,
+      "age_hours": 0.2,
+      "median_chars": 386,
+      "dated": 44,
       "verdict": "OK"
     },
     {
@@ -62,7 +62,7 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 0.8,
+      "age_hours": 1.2,
       "median_chars": 144,
       "dated": 20,
       "verdict": "OK"
@@ -71,7 +71,7 @@
       "name": "News18",
       "url": "https://www.news18.com/rss/india.xml",
       "ok": true,
-      "note": "redirected -> https://www.news18.com/commonfeeds/v1/eng/rss/india.xml?Access-Control-Allow-Origin=*&Access-Control-Allow-Methods=GET&Access-Control-Allow-Headers=Content-Type&Access-Control-Max-Age=3600&User-Agent=Mozilla%2F5.0%20(X11%3B%20Ubuntu%3B%20Linux%20x86_64%3B%20rv%3A52.0)%20Gecko%2F20100101%20Firefox%2F52.0",
+      "note": "redirected -> https://www.news18.com/commonfeeds/v1/eng/rss/india.xml?x=1",
       "entries": 200,
       "age_hours": 0.0,
       "median_chars": 160,
@@ -84,8 +84,8 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 0.3,
-      "median_chars": 77,
+      "age_hours": 0.0,
+      "median_chars": 78,
       "dated": 20,
       "verdict": "OK"
     },
@@ -172,8 +172,8 @@
       "ok": true,
       "note": "",
       "entries": 35,
-      "age_hours": 0.0,
-      "median_chars": 201,
+      "age_hours": 0.3,
+      "median_chars": 209,
       "dated": 35,
       "verdict": "OK"
     },
@@ -194,7 +194,7 @@
       "ok": true,
       "note": "",
       "entries": 50,
-      "age_hours": 1.0,
+      "age_hours": 0.4,
       "median_chars": 0,
       "dated": 50,
       "verdict": "OK"
@@ -205,7 +205,7 @@
       "ok": true,
       "note": "",
       "entries": 15,
-      "age_hours": 19966.5,
+      "age_hours": 19966.9,
       "median_chars": 161,
       "dated": 15,
       "verdict": "STALE"
@@ -215,10 +215,10 @@
       "url": "https://www.freepressjournal.in/stories.rss",
       "ok": true,
       "note": "",
-      "entries": 61,
-      "age_hours": 0.5,
-      "median_chars": 2459,
-      "dated": 61,
+      "entries": 67,
+      "age_hours": 0.4,
+      "median_chars": 2391,
+      "dated": 67,
       "verdict": "OK"
     },
     {
@@ -226,10 +226,10 @@
       "url": "https://www.deccanchronicle.com/rss_feed/",
       "ok": true,
       "note": "redirected -> https://www.deccanchronicle.com/feeds.xml",
-      "entries": 426,
+      "entries": 424,
       "age_hours": 0.0,
-      "median_chars": 143,
-      "dated": 426,
+      "median_chars": 144,
+      "dated": 424,
       "verdict": "OK"
     }
   ]
