@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parent.parent
 FEEDS_FILE = ROOT / "feeds.yaml"
 REPORT_MD = ROOT / "reports" / "feed_check.md"
 REPORT_JSON = ROOT / "reports" / "feed_check.json"
+REPORT_HTML = ROOT / "reports" / "index.html"
 
 # Polite, identifiable UA tried first.
 UA_BOT = "newsdigest/0.1 (personal research; +https://github.com/devshrawin/newsdigest)"
@@ -123,19 +124,32 @@ def fetch(url: str):
     return resp, err
 
 
-def check(name: str, url: str) -> dict:
+SNIPPET_LEN = 240   # chars of body shown per article card
+
+
+def entry_link(entry) -> str:
+    if entry.get("link"):
+        return entry["link"]
+    for l in entry.get("links") or []:
+        if l.get("href"):
+            return l["href"]
+    return ""
+
+
+def check(name: str, url: str):
     row = {
         "name": name, "url": url, "ok": False, "note": "",
         "entries": 0, "age_hours": None, "median_chars": 0, "dated": 0,
     }
+    articles = []
 
     resp, note = fetch(url)
     if resp is None:
         row["note"] = note
-        return row
+        return row, articles
     if resp.status_code != 200:
         row["note"] = f"HTTP {resp.status_code}"
-        return row
+        return row, articles
 
     parsed = feedparser.parse(getattr(resp, "_newsdigest_body", b""))
     entries = parsed.entries or []
@@ -145,12 +159,13 @@ def check(name: str, url: str) -> dict:
     row["entries"] = len(entries)
     if not entries:
         row["note"] = "0 entries (not a feed? moved?)"
-        return row
+        return row, articles
 
-    bodies = [len(entry_body(e)) for e in entries]
-    row["median_chars"] = int(statistics.median(bodies))
+    bodies = [entry_body(e) for e in entries]
+    row["median_chars"] = int(statistics.median(len(b) for b in bodies))
 
-    times = [t for t in (entry_time(e) for e in entries) if t]
+    entry_times = [entry_time(e) for e in entries]
+    times = [t for t in entry_times if t]
     row["dated"] = len(times)
     if times:
         row["age_hours"] = round(
@@ -162,7 +177,16 @@ def check(name: str, url: str) -> dict:
     if resp.url.rstrip("/") != url.rstrip("/"):
         notes.append(f"redirected -> {resp.url}")
     row["note"] = "; ".join(notes)
-    return row
+
+    for e, body, t in zip(entries, bodies, entry_times):
+        articles.append({
+            "source": name,
+            "title": e.get("title") or "(untitled)",
+            "link": entry_link(e),
+            "published": t,
+            "snippet": (body[:SNIPPET_LEN] + "…") if len(body) > SNIPPET_LEN else body,
+        })
+    return row, articles
 
 
 def verdict(row: dict) -> str:
@@ -206,15 +230,68 @@ def load_feeds():
     return feeds
 
 
+def render_html(articles: list, live_count: int, total_count: int) -> str:
+    """Self-contained article listing -- open reports/index.html (or the
+    Pages URL) instead of poking at news.db to see what the feeds have."""
+    def sort_key(a):
+        return a["published"] or datetime.min.replace(tzinfo=timezone.utc)
+
+    cards = []
+    for a in sorted(articles, key=sort_key, reverse=True):
+        when = f"{a['published']:%Y-%m-%d %H:%M} UTC" if a["published"] else "undated"
+        link = html.escape(a["link"], quote=True)
+        cards.append(f"""
+      <article class="card">
+        <div class="meta">{html.escape(a['source'])} &middot; {when}</div>
+        <h2><a href="{link}" rel="noopener noreferrer">{html.escape(a['title'])}</a></h2>
+        <p>{html.escape(a['snippet'])}</p>
+      </article>""")
+
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>newsdigest — articles</title>
+<style>
+  :root {{ color-scheme: light dark; }}
+  body {{ font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto;
+          padding: 1.5rem; line-height: 1.45; }}
+  header {{ margin-bottom: 1.5rem; }}
+  header p {{ opacity: 0.7; margin: 0.2rem 0 0; }}
+  .card {{ border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+           padding: 1rem 0; }}
+  .card h2 {{ font-size: 1.05rem; margin: 0.2rem 0; }}
+  .card a {{ text-decoration: none; }}
+  .card a:hover {{ text-decoration: underline; }}
+  .meta {{ font-size: 0.8rem; opacity: 0.6; }}
+  .card p {{ margin: 0.3rem 0 0; opacity: 0.85; }}
+</style>
+</head>
+<body>
+  <header>
+    <h1>newsdigest</h1>
+    <p>Run {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC &middot; {live_count}/{total_count} feeds usable &middot; {len(articles)} articles</p>
+  </header>
+  <main>{"".join(cards) if cards else "<p>No articles fetched.</p>"}
+  </main>
+</body>
+</html>
+"""
+
+
 def main() -> int:
     feeds = load_feeds()
     rows = []
+    all_articles = []
     for f in feeds:
         print(f"checking {f['name']} ...", flush=True)
-        r = check(f["name"], f["url"])
+        r, arts = check(f["name"], f["url"])
         r["verdict"] = verdict(r)
         print(f"   {r['verdict']} {r['note']}".rstrip(), flush=True)
         rows.append(r)
+        if r["ok"]:
+            all_articles.extend(arts)
         time.sleep(1)  # be polite
 
     live = [r for r in rows if r["verdict"] == "OK"]
@@ -260,8 +337,10 @@ def main() -> int:
         {"checked_at": datetime.now(timezone.utc).isoformat(), "feeds": rows},
         indent=2,
     ))
+    REPORT_HTML.write_text(render_html(all_articles, len(live), len(rows)))
 
-    print(f"\nwrote {REPORT_MD.name} + {REPORT_JSON.name}  ({len(live)}/{len(rows)} usable)")
+    print(f"\nwrote {REPORT_MD.name} + {REPORT_JSON.name} + {REPORT_HTML.name} "
+          f"({len(live)}/{len(rows)} usable, {len(all_articles)} articles)")
     return 0
 
 
