@@ -230,6 +230,12 @@ def load_feeds():
     return feeds
 
 
+def source_hue(name: str) -> int:
+    """Deterministic accent hue per source, so the same publisher always
+    gets the same chip color across runs."""
+    return (sum(ord(c) for c in name) * 47) % 360
+
+
 def render_html(articles: list, live_count: int, total_count: int) -> str:
     """Self-contained article listing -- open reports/index.html (or the
     Pages URL) instead of poking at news.db to see what the feeds have."""
@@ -240,11 +246,12 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     for a in sorted(articles, key=sort_key, reverse=True):
         when = f"{a['published']:%Y-%m-%d %H:%M} UTC" if a["published"] else "undated"
         link = html.escape(a["link"], quote=True)
+        hue = source_hue(a["source"])
         cards.append(f"""
-      <article class="card">
-        <div class="meta">{html.escape(a['source'])} &middot; {when}</div>
+      <article class="card" style="--hue: {hue}">
+        <div class="meta"><span class="chip">{html.escape(a['source'])}</span><time>{when}</time></div>
         <h2><a href="{link}" rel="noopener noreferrer">{html.escape(a['title'])}</a></h2>
-        <p>{html.escape(a['snippet'])}</p>
+        <p class="snippet">{html.escape(a['snippet'])}</p>
       </article>""")
 
     return f"""<!doctype html>
@@ -254,18 +261,49 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>newsdigest — articles</title>
 <style>
-  :root {{ color-scheme: light dark; }}
-  body {{ font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto;
-          padding: 1.5rem; line-height: 1.45; }}
-  header {{ margin-bottom: 1.5rem; }}
-  header p {{ opacity: 0.7; margin: 0.2rem 0 0; }}
-  .card {{ border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent);
-           padding: 1rem 0; }}
-  .card h2 {{ font-size: 1.05rem; margin: 0.2rem 0; }}
-  .card a {{ text-decoration: none; }}
+  :root {{
+    color-scheme: light dark;
+    --bg: #f4f5f7; --surface: #ffffff; --ink: #1a1a1a; --sub: #6b7280;
+    --border: rgba(0,0,0,.06); --shadow: 0 1px 3px rgba(0,0,0,.06);
+  }}
+  @media (prefers-color-scheme: dark) {{
+    :root {{ --bg: #0e0f11; --surface: #1b1c1f; --ink: #f2f2f2; --sub: #9aa0a6;
+             --border: rgba(255,255,255,.08); --shadow: 0 1px 3px rgba(0,0,0,.4); }}
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink);
+    max-width: 640px; margin: 0 auto; padding: 1.25rem 1rem 3rem;
+    line-height: 1.45;
+  }}
+  header {{ padding: 0.5rem 0.25rem 1.25rem; }}
+  header h1 {{ margin: 0; font-size: 1.4rem; letter-spacing: -0.02em; }}
+  header p {{ color: var(--sub); margin: 0.3rem 0 0; font-size: 0.85rem; }}
+  main {{ display: flex; flex-direction: column; gap: 0.75rem; }}
+  .card {{
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 0.9rem 1.1rem; box-shadow: var(--shadow);
+  }}
+  .meta {{ display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }}
+  .chip {{
+    background: hsl(var(--hue) 70% 92%); color: hsl(var(--hue) 60% 28%);
+    padding: 0.15rem 0.6rem; border-radius: 999px;
+    font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+  }}
+  @media (prefers-color-scheme: dark) {{
+    .chip {{ background: hsl(var(--hue) 40% 20%); color: hsl(var(--hue) 70% 80%); }}
+  }}
+  .meta time {{ color: var(--sub); font-size: 0.78rem; }}
+  .card h2 {{ font-size: 1.05rem; line-height: 1.3; margin: 0 0 0.35rem; font-weight: 600; }}
+  .card a {{ color: inherit; text-decoration: none; }}
   .card a:hover {{ text-decoration: underline; }}
-  .meta {{ font-size: 0.8rem; opacity: 0.6; }}
-  .card p {{ margin: 0.3rem 0 0; opacity: 0.85; }}
+  .snippet {{
+    margin: 0; color: var(--sub); font-size: 0.9rem;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }}
+  .empty {{ color: var(--sub); text-align: center; padding: 3rem 0; }}
 </style>
 </head>
 <body>
@@ -273,7 +311,7 @@ def render_html(articles: list, live_count: int, total_count: int) -> str:
     <h1>newsdigest</h1>
     <p>Run {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC &middot; {live_count}/{total_count} feeds usable &middot; {len(articles)} articles</p>
   </header>
-  <main>{"".join(cards) if cards else "<p>No articles fetched.</p>"}
+  <main>{"".join(cards) if cards else '<p class="empty">No articles fetched.</p>'}
   </main>
 </body>
 </html>
