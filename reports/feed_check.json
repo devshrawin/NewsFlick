@@ -1,0 +1,236 @@
+{
+  "checked_at": "2026-08-03T05:57:47.549462+00:00",
+  "feeds": [
+    {
+      "name": "The Hindu",
+      "url": "https://www.thehindu.com/news/national/feeder/default.rss",
+      "ok": true,
+      "note": "",
+      "entries": 60,
+      "age_hours": 0.1,
+      "median_chars": 133,
+      "dated": 60,
+      "verdict": "OK"
+    },
+    {
+      "name": "The Hindu (Top)",
+      "url": "https://www.thehindu.com/feeder/default.rss",
+      "ok": true,
+      "note": "",
+      "entries": 60,
+      "age_hours": 0.1,
+      "median_chars": 141,
+      "dated": 60,
+      "verdict": "OK"
+    },
+    {
+      "name": "Indian Express",
+      "url": "https://indianexpress.com/section/india/feed/",
+      "ok": false,
+      "note": "HTTP 403",
+      "entries": 0,
+      "age_hours": null,
+      "median_chars": 0,
+      "dated": 0,
+      "verdict": "DEAD"
+    },
+    {
+      "name": "Hindustan Times",
+      "url": "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml",
+      "ok": true,
+      "note": "",
+      "entries": 100,
+      "age_hours": 0.0,
+      "median_chars": 141,
+      "dated": 100,
+      "verdict": "OK"
+    },
+    {
+      "name": "Times of India",
+      "url": "https://timesofindia.indiatimes.com/rssfeedstopstories.cms",
+      "ok": true,
+      "note": "",
+      "entries": 45,
+      "age_hours": 0.3,
+      "median_chars": 391,
+      "dated": 45,
+      "verdict": "OK"
+    },
+    {
+      "name": "NDTV",
+      "url": "https://feeds.feedburner.com/ndtvnews-india-news",
+      "ok": true,
+      "note": "",
+      "entries": 20,
+      "age_hours": 0.1,
+      "median_chars": 144,
+      "dated": 20,
+      "verdict": "OK"
+    },
+    {
+      "name": "News18",
+      "url": "https://www.news18.com/rss/india.xml",
+      "ok": true,
+      "note": "redirected -> https://www.news18.com/commonfeeds/v1/eng/rss/india.xml",
+      "entries": 200,
+      "age_hours": 0.0,
+      "median_chars": 161,
+      "dated": 200,
+      "verdict": "OK"
+    },
+    {
+      "name": "India Today",
+      "url": "https://www.indiatoday.in/rss/1206578",
+      "ok": true,
+      "note": "",
+      "entries": 20,
+      "age_hours": 0.1,
+      "median_chars": 76,
+      "dated": 20,
+      "verdict": "OK"
+    },
+    {
+      "name": "Firstpost",
+      "url": "https://www.firstpost.com/rss/india.xml",
+      "ok": false,
+      "note": "HTTP 403",
+      "entries": 0,
+      "age_hours": null,
+      "median_chars": 0,
+      "dated": 0,
+      "verdict": "DEAD"
+    },
+    {
+      "name": "ThePrint",
+      "url": "https://theprint.in/feed/",
+      "ok": false,
+      "note": "0 entries (not a feed? moved?)",
+      "entries": 0,
+      "age_hours": null,
+      "median_chars": 0,
+      "dated": 0,
+      "verdict": "DEAD"
+    },
+    {
+      "name": "Scroll",
+      "url": "https://scroll.in/feed",
+      "ok": false,
+      "note": "0 entries (not a feed? moved?)",
+      "entries": 0,
+      "age_hours": null,
+      "median_chars": 0,
+      "dated": 0,
+      "verdict": "DEAD"
+    },
+    {
+      "name": "The Wire",
+      "url": "https://thewire.in/rss",
+      "ok": false,
+      "note": "0 entries (not a feed? moved?)",
+      "entries": 0,
+      "age_hours": null,
+      "median_chars": 0,
+      "dated": 0,
+      "verdict": "DEAD"
+    },
+    {
+      "name": "Deccan Herald",
+      "url": "https://www.deccanherald.com/rss/national.rss",
+      "ok": false,
+      "note": "HTTP 404",
+      "entries": 0,
+      "age_hours": null,
+      "median_chars": 0,
+      "dated": 0,
+      "verdict": "DEAD"
+    },
+    {
+      "name": "Telegraph India",
+      "url": "https://www.telegraphindia.com/feeds/rss.jsp?id=3",
+      "ok": false,
+      "note": "HTTP 403",
+      "entries": 0,
+      "age_hours": null,
+      "median_chars": 0,
+      "dated": 0,
+      "verdict": "DEAD"
+    },
+    {
+      "name": "The Tribune",
+      "url": "https://www.tribuneindia.com/rss/feed?catId=8",
+      "ok": false,
+      "note": "HTTP 403",
+      "entries": 0,
+      "age_hours": null,
+      "median_chars": 0,
+      "dated": 0,
+      "verdict": "DEAD"
+    },
+    {
+      "name": "Livemint",
+      "url": "https://www.livemint.com/rss/news",
+      "ok": true,
+      "note": "",
+      "entries": 35,
+      "age_hours": 0.3,
+      "median_chars": 201,
+      "dated": 35,
+      "verdict": "OK"
+    },
+    {
+      "name": "Business Standard",
+      "url": "https://www.business-standard.com/rss/home_page_top_stories.rss",
+      "ok": false,
+      "note": "HTTP 403",
+      "entries": 0,
+      "age_hours": null,
+      "median_chars": 0,
+      "dated": 0,
+      "verdict": "DEAD"
+    },
+    {
+      "name": "Economic Times",
+      "url": "https://economictimes.indiatimes.com/rssfeedstopstories.cms",
+      "ok": true,
+      "note": "",
+      "entries": 50,
+      "age_hours": 0.5,
+      "median_chars": 0,
+      "dated": 50,
+      "verdict": "OK"
+    },
+    {
+      "name": "Moneycontrol",
+      "url": "https://www.moneycontrol.com/rss/latestnews.xml",
+      "ok": true,
+      "note": "",
+      "entries": 15,
+      "age_hours": 19965.8,
+      "median_chars": 161,
+      "dated": 15,
+      "verdict": "STALE"
+    },
+    {
+      "name": "Free Press Journal",
+      "url": "https://www.freepressjournal.in/stories.rss",
+      "ok": true,
+      "note": "",
+      "entries": 56,
+      "age_hours": 0.1,
+      "median_chars": 2445,
+      "dated": 56,
+      "verdict": "OK"
+    },
+    {
+      "name": "Deccan Chronicle",
+      "url": "https://www.deccanchronicle.com/rss_feed/",
+      "ok": true,
+      "note": "redirected -> https://www.deccanchronicle.com/feeds.xml",
+      "entries": 428,
+      "age_hours": 0.1,
+      "median_chars": 143,
+      "dated": 428,
+      "verdict": "OK"
+    }
+  ]
+}
