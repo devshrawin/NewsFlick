@@ -32,6 +32,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 FEEDS_FILE = ROOT / "feeds.yaml"
+BIAS_FILE = ROOT / "source_bias.yaml"
+NOT_RATED = {"leaning": "Not rated", "cite_name": None, "cite_url": None}
 REPORT_MD = ROOT / "reports" / "feed_check.md"
 REPORT_JSON = ROOT / "reports" / "feed_check.json"
 REPORT_HTML = ROOT / "reports" / "index.html"
@@ -362,6 +364,31 @@ def load_feeds():
     return feeds
 
 
+def load_bias() -> dict:
+    """source name -> {leaning, cite_name, cite_url}. Never raises: this file
+    is meant to be incomplete and hand-edited, so a missing file or an
+    unlisted source both just fall back to Not rated rather than breaking
+    the run -- unlike load_feeds(), where a bad file is a real error."""
+    if not BIAS_FILE.exists():
+        return {}
+    try:
+        data = yaml.safe_load(BIAS_FILE.read_text(encoding="utf-8"))
+    except yaml.YAMLError:
+        return {}
+    sources = (data or {}).get("sources")
+    if not isinstance(sources, dict):
+        return {}
+    out = {}
+    for name, entry in sources.items():
+        if isinstance(entry, dict) and entry.get("leaning"):
+            out[name] = {
+                "leaning": entry["leaning"],
+                "cite_name": entry.get("cite_name"),
+                "cite_url": entry.get("cite_url"),
+            }
+    return out
+
+
 def source_hue(name: str) -> int:
     """Deterministic accent hue per source, so the same publisher always
     gets the same badge color across runs."""
@@ -443,6 +470,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     audit note in the README before touching that.
     """
     now = datetime.now(timezone.utc)
+    bias = load_bias()
 
     def sort_key(a):
         return a["published"] or datetime.min.replace(tzinfo=timezone.utc)
@@ -466,6 +494,9 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
             "hue": source_hue(a["source"]),
             "initials": source_initials(a["source"]),
             "alsoFrom": a.get("also_from", []),
+            "leaning": bias.get(a["source"], NOT_RATED)["leaning"],
+            "citeName": bias.get(a["source"], NOT_RATED)["cite_name"],
+            "citeUrl": bias.get(a["source"], NOT_RATED)["cite_url"],
         }
         for a in sorted(articles, key=sort_key, reverse=True)
     ]
@@ -700,6 +731,10 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
   .section.collapsed .section-panel {{ grid-template-rows: 0fr; }}
   .section.collapsed .section-panel > div {{ opacity: 0; }}
   .section-hint {{ font-size: .72rem; color: var(--sub); margin: 0 0 .55rem; }}
+  .drawer-footnote {{
+    font-size: .7rem; color: var(--sub); opacity: .75; line-height: 1.4;
+    padding: .9rem 1.1rem 0; margin: .3rem 0 0; border-top: 1px solid var(--line);
+  }}
 
   /* ---- first-run "what do you care about" onboarding form ---- */
   .onb-scrim {{
@@ -829,6 +864,27 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     font-size: .66rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
     color: var(--sub); background: var(--bg-2);
     border: 1px solid var(--line); padding: .16rem .46rem; border-radius: 999px;
+  }}
+  /* Political-leaning pill + a faint background wash on the card itself.
+     Self-curated (source_bias.yaml), not from an API -- see the drawer
+     footer disclaimer. A source with no entry gets neither: no pill, no
+     tint, so "unrated" never gets mistaken for a "Center" judgment. */
+  .pill.lean {{ border-color: transparent; }}
+  .card[data-lean="Left"] .pill.lean, .card[data-lean="Lean Left"] .pill.lean {{
+    color: #6ea8ff; background: rgba(91,140,255,.14);
+  }}
+  .card[data-lean="Right"] .pill.lean, .card[data-lean="Lean Right"] .pill.lean {{
+    color: #ff9c7a; background: rgba(255,120,90,.14);
+  }}
+  .card[data-lean="Center"] .pill.lean {{ color: var(--sub); background: rgba(160,160,170,.14); }}
+  .card[data-lean="Left"], .card[data-lean="Lean Left"] {{
+    background: linear-gradient(165deg, rgba(91,140,255,.09), transparent 55%) var(--surface);
+  }}
+  .card[data-lean="Right"], .card[data-lean="Lean Right"] {{
+    background: linear-gradient(165deg, rgba(255,120,90,.09), transparent 55%) var(--surface);
+  }}
+  .card[data-lean="Center"] {{
+    background: linear-gradient(165deg, rgba(160,160,170,.07), transparent 55%) var(--surface);
   }}
   .card h2 {{
     margin: 0 0 .4rem; font-size: 1.19rem; line-height: 1.28;
@@ -1016,6 +1072,8 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
           <nav class="chipwrap" id="sources" aria-label="Filter by source"></nav>
         </div></div>
       </div>
+      <p class="drawer-footnote">Leaning shown on cards is from public ratings where available, hand-curated
+        (not an API) -- most sources aren't independently rated.</p>
     </div>
   </aside>
 
@@ -1280,6 +1338,12 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         : '';
       var on = saved.has(a.id);
       var link = safeUrl(a.link);
+      // "Not rated" never renders a pill -- an unrated source must not look
+      // like a deliberate "neutral" judgment.
+      var leanTitle = a.citeName ? 'via ' + a.citeName : 'Self-curated, not from an API';
+      var lean = (a.leaning && a.leaning !== 'Not rated')
+        ? '<span class="pill lean" title="' + esc(leanTitle) + '">' + esc(a.leaning) + '</span>'
+        : '';
       return ''
         + '<div class="tools">'
         +   '<button class="tool save' + (on ? ' on' : '') + '" data-act="save" title="Save for later"'
@@ -1291,6 +1355,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         +   '<div class="metarow">'
         +     '<span class="src"><span class="ava">' + esc(a.initials) + '</span>' + esc(a.source) + '</span>'
         +     '<span class="pill">' + esc(a.topic) + '</span>'
+        +     lean
         +   '</div>'
         +   '<h2>' + esc(a.title) + '</h2>'
         +   also
@@ -1310,6 +1375,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       el.style.setProperty('--i', stackI);
       el.style.zIndex = String(10 - stackI);
       el.dataset.id = a.id;
+      if (a.leaning && a.leaning !== 'Not rated') el.dataset.lean = a.leaning;
       el.innerHTML = cardMarkup(a);
       if (stackI > 0) {{
         el.style.transform = 'translateY(' + (stackI * 11) + 'px) scale(' + (1 - stackI * 0.045) + ')';

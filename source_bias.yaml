@@ -1,0 +1,39 @@
+# Political-leaning tag shown on cards (a tint + a small pill, e.g. "Lean
+# Left"). Self-curated, not an API -- no free, comprehensive, automatable
+# rating source exists for this, and the well-known Western media-bias
+# charts (AllSides, Ad Fontes) mostly don't cover Indian outlets at all.
+#
+# leaning: Left | Lean Left | Center | Lean Right | Right | Not rated
+# cite_name/cite_url: optional. Omit both for "Not rated" (no pill shown,
+# no tint applied -- an unrated source should never look like it was
+# rated "neutral").
+#
+# Every current feed defaults to "Not rated" below except a handful of
+# international outlets I'm confident enough to cite directly. Indian
+# outlets are left unrated on purpose -- this is edited by hand, and I'd
+# rather ship an honest gap than a guess about a real news organization's
+# politics. Fill these in yourself if you want fuller coverage; keep the
+# same leaning/cite_name/cite_url shape.
+
+sources:
+  BBC World:
+    leaning: Center
+    cite_name: AllSides
+    cite_url: https://www.allsides.com/news-source/bbc-news-media-bias
+  BBC Asia:
+    leaning: Center
+    cite_name: AllSides
+    cite_url: https://www.allsides.com/news-source/bbc-news-media-bias
+  NPR:
+    leaning: Lean Left
+    cite_name: AllSides
+    cite_url: https://www.allsides.com/news-source/npr-media-bias
+  Al Jazeera:
+    leaning: Lean Left
+    cite_name: AllSides
+    cite_url: https://www.allsides.com/news-source/al-jazeera-media-bias
+
+  # Everything else -- Deutsche Welle, and every Indian national, regional,
+  # business, tech, sports, entertainment, government, and fact-check outlet
+  # in feeds.yaml -- is intentionally absent, which load_bias() treats the
+  # same as an unlisted future feed: "Not rated".

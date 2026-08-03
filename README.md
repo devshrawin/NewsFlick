@@ -19,7 +19,12 @@ multi-select topic filter (pick as many as you like, or none to see
 everything), and **Sources**, single-select as before. First-time visitors
 get a one-time "what do you want to see" form for Interests; skip it or
 revisit it anytime from the drawer — both write to the same
-`localStorage`-backed selection. Near-duplicate headlines from different
+`localStorage`-backed selection. Cards also carry a political-leaning pill
+and a faint background tint where a source has one (`source_bias.yaml`,
+hand-curated, cited where it comes from a public rating like AllSides —
+most sources, especially Indian ones, are honestly "Not rated" rather than
+guessed at). On desktop, cards go landscape (image beside text) instead of
+mobile's tall stacked layout. Near-duplicate headlines from different
 agencies merge into one card, and each card has a save-for-later star and a
 share button (deep-links back to that exact card on our own page, not the
 source, so the digest itself stays visible when shared). The workflow runs
@@ -168,6 +173,28 @@ makes it an experiment rather than a hobby project.
 - Saved ids are pruned against the current snapshot on load. They accumulate
   across hourly rebuilds but only ids still present can be displayed, so the
   chip counted articles the Saved view could not show.
+- The workflow's `cron` is `"17 * * * *"`, not `"0 * * * *"`. Verified live:
+  with `:00`, 8 runs and 4+ hours passed with zero schedule-triggered runs
+  (all manual) — top-of-hour is the single most congested cron slot on
+  GitHub, and scheduled runs can be delayed or dropped under that load.
+- `render()`'s full DOM rebuild on every `advance()` is why a swipe used to
+  visibly jump: the promoted card popped straight to its final position
+  instead of animating there, since a freshly-created element has nothing
+  to transition from. `promoteAfterFlyOut()` mutates the *existing* stacked
+  cards' `--i`/transform in place instead, so the CSS transition actually
+  runs. Don't route forward navigation back through a full `render()`
+  without checking whether this still applies.
+- `.onb-scrim` (the onboarding backdrop) sits at z-index 15, below the
+  header's 20, on purpose — it used to be 50 (above everything), so a
+  first-visit tap on the hamburger landed on the backdrop instead of the
+  button and silently just dismissed the prompt. The backdrop still gates
+  the deck itself (`.layout` is z-index 1); only the header stays reachable
+  through it.
+- `source_bias.yaml` leaning labels feed a background tint + pill on cards.
+  An unlisted source (or the file missing entirely) must resolve to
+  "Not rated" with no pill and no tint — never silently to "Center" — since
+  that's a claim about a real news organization's politics that most
+  sources here (deliberately) don't have backing for.
 
 ## QA performed
 
@@ -209,6 +236,19 @@ End-to-end, not just unit-level:
   default palette when the OS reports dark and the light override applies
   when it explicitly reports light. Card-to-controls gap measured at 28px
   (mobile) / 15px (desktop) — was visually overlapping before.
+- Swipe/hamburger/layout fixes verified against a real 32-feed run
+  (28 OK, 1954 cards): promoted card reuses its existing DOM node on
+  advance (not a fresh element); filter change still does a full,
+  correct rebuild; next-section suggestion tested by exhausting a
+  2-article topic filter and confirming "Continue to X" lands correctly
+  filtered; desktop measured 664×365 (landscape) vs mobile 310×421
+  (portrait) on the same content; hamburger bug reproduced with a real
+  dispatched click (not a synthetic `.click()`, which bypasses hit-testing
+  and would have missed this) and confirmed fixed via `elementFromPoint` +
+  a real click, both with the onboarding prompt open and after dismissing
+  it. Political-leaning pill/tint confirmed present for a rated source
+  (BBC World: Center, "via AllSides"), absent for an unrated one (Times of
+  India), on both synthetic and real generated data.
 
 **Update 2026-08-03:** all 32 feeds now in `feeds.yaml` were reachable and
 validated from this dev environment (27 OK, 5 STALE-but-alive, 0 dead) — a
