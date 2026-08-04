@@ -629,7 +629,10 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     backdrop-filter: saturate(1.6) blur(18px);
     -webkit-backdrop-filter: saturate(1.6) blur(18px);
     border-bottom: 1px solid var(--line);
-    padding: .7rem 1rem;
+    /* viewport-fit=cover lets content draw under the notch/status bar, so
+       the sticky header needs the safe-area inset added back in, not just
+       the flat .7rem. */
+    padding: calc(.7rem + env(safe-area-inset-top)) 1rem .7rem;
   }}
   .bar {{
     display: flex; align-items: center; gap: .7rem;
@@ -826,7 +829,8 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
 
   .layout {{
     position: relative; z-index: 1;
-    max-width: 1100px; margin: 0 auto; padding: 1.25rem 1rem 2.5rem;
+    max-width: 1100px; margin: 0 auto;
+    padding: 1.25rem 1rem calc(2.5rem + env(safe-area-inset-bottom));
     display: grid; grid-template-columns: 1fr; gap: 1.5rem; align-items: start;
   }}
 
@@ -1020,7 +1024,8 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
   .qempty {{ color: var(--sub); font-size: .8rem; }}
 
   .toast {{
-    position: fixed; left: 50%; bottom: 1.4rem; z-index: 60;
+    position: fixed; left: 50%; z-index: 60;
+    bottom: calc(1.4rem + env(safe-area-inset-bottom));
     transform: translate(-50%, 24px) scale(.96); opacity: 0; pointer-events: none;
     display: flex; align-items: center; gap: .45rem;
     padding: .6rem 1rem; border-radius: 999px;
@@ -1033,13 +1038,24 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
 
   :focus-visible {{ outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }}
 
-  @media (min-width: 900px) {{
-    .layout {{ grid-template-columns: minmax(0, 1fr) 296px; gap: 2.25rem; }}
-    .queue {{ display: block; position: sticky; top: 8.5rem; }}
-    .hint {{ display: block; }}
+  /* Edge-to-edge card on phones -- closer to how Inshorts et al. do it, and
+     it removes the ~6% side gutter that made the deck read as "a card
+     floating in the middle of the page" instead of one full-width surface.
+     Scoped to phone widths only: at tablet widths (641-899px) the floating,
+     rounded card still has room to breathe and looks intentional there. */
+  @media (max-width: 640px) {{
+    .layout {{ padding-left: 0; padding-right: 0; }}
+    .card {{ width: 100%; border-radius: 0; border-width: 1px 0; }}
+  }}
 
-    /* Landscape cards on desktop: image beside the text instead of on top of
-       it. Mobile keeps the tall portrait layout defined above untouched --
+  /* Landscape phones: the mobile portrait card forces a >=380px-tall stage
+     (see .stage above), which overflows a short landscape viewport and
+     shoves/overlaps the prev/next buttons below it. Below the 900px
+     tablet/desktop width, fall back to the same short, side-by-side card
+     layout whenever the viewport itself is short, regardless of width. */
+  @media (min-width: 900px), (max-height: 480px) {{
+    /* Landscape cards: image beside the text instead of on top of it.
+       Portrait mobile keeps the tall layout defined above untouched --
        these rules only apply from this breakpoint up. */
     .stage {{ height: clamp(300px, 46vh, 380px); }}
     .card {{ width: min(94%, 780px); }}
@@ -1057,6 +1073,12 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     .rnd {{ width: 2.5rem; height: 2.5rem; }}
     .rnd svg {{ width: .95rem; height: .95rem; }}
     .count {{ margin-top: .45rem; }}
+  }}
+
+  @media (min-width: 900px) {{
+    .layout {{ grid-template-columns: minmax(0, 1fr) 296px; gap: 2.25rem; }}
+    .queue {{ display: block; position: sticky; top: 8.5rem; }}
+    .hint {{ display: block; }}
   }}
 
   @media (prefers-reduced-motion: reduce) {{
@@ -1668,7 +1690,203 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       if (sourceFilter === '__saved__') render();
     }}
 
-    function share(a) {{
+    // ---- Inshorts-style share image: draw the card's own photo, headline,
+    // summary and source into a canvas and export it as a PNG, instead of
+    // sharing a bare link. Canvas API only -- no CDN dependency for a static
+    // site with no build step.
+
+    var SHARE_W = 1080, SHARE_H = 1350;   // 4:5, plays nicely as a feed post
+
+    // Manual word-wrap: canvas has no auto-wrapping, so measure as we go and
+    // ellipsize whatever's left once maxLines is hit.
+    function wrapLines(ctx, text, maxWidth, maxLines) {{
+      var words = String(text || '').split(/\\s+/).filter(Boolean);
+      var lines = [];
+      var line = '';
+      var i = 0;
+      while (i < words.length && lines.length < maxLines) {{
+        var test = line ? line + ' ' + words[i] : words[i];
+        if (line && ctx.measureText(test).width > maxWidth) {{
+          lines.push(line);
+          line = '';
+        }} else {{
+          line = test;
+          i++;
+        }}
+      }}
+      if (line && lines.length < maxLines) lines.push(line);
+      if (i < words.length && lines.length) {{
+        var last = lines[lines.length - 1];
+        while (last.length > 1 && ctx.measureText(last + '…').width > maxWidth) {{
+          last = last.slice(0, -1);
+        }}
+        lines[lines.length - 1] = last + '…';
+      }}
+      return lines;
+    }}
+
+    // CSS object-fit:cover, but for a canvas -- crop to the target aspect
+    // before scaling so the photo fills the frame with no letterboxing.
+    function drawCover(ctx, img, x, y, w, h) {{
+      var ir = img.naturalWidth / img.naturalHeight;
+      var tr = w / h;
+      var sx, sy, sw, sh;
+      if (ir > tr) {{
+        sh = img.naturalHeight; sw = sh * tr; sx = (img.naturalWidth - sw) / 2; sy = 0;
+      }} else {{
+        sw = img.naturalWidth; sh = sw / tr; sx = 0; sy = (img.naturalHeight - sh) / 2;
+      }}
+      ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+    }}
+
+    function roundRectPath(ctx, x, y, w, h, r) {{
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }}
+
+    // Decorative only (the exported PNG is a static image) -- mirrors the
+    // save/share glyphs on the card itself so the crop still reads as "from
+    // this app" once it's out in a chat thread.
+    function drawTopRightIcons(ctx, rightEdge, cy) {{
+      [{{ dx: 76, path: 'M-9,-2 L9,-2 M0,-9 L0,7 M-6,-3 L0,-9 L6,-3' }},   // share arrow
+       {{ dx: 0, path: 'M-8,-9 L8,-9 L8,9 L0,2 L-8,9 Z' }}                // bookmark
+      ].forEach(function (icon) {{
+        var cx = rightEdge - icon.dx;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(10,10,14,.4)';
+        ctx.fill();
+        ctx.translate(cx, cy);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.4; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.stroke(new Path2D(icon.path));
+        ctx.restore();
+      }});
+    }}
+
+    function buildShareCanvas(a, img) {{
+      var W = SHARE_W, H = SHARE_H, pad = 56;
+      var canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      var ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#111319';
+      ctx.fillRect(0, 0, W, H);
+      drawCover(ctx, img, 0, 0, W, H);
+
+      // Dark scrim at top (keeps the source badge legible) and bottom (keeps
+      // the headline/summary legible) regardless of how bright the photo is.
+      var top = ctx.createLinearGradient(0, 0, 0, 200);
+      top.addColorStop(0, 'rgba(0,0,0,.6)'); top.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = top; ctx.fillRect(0, 0, W, 200);
+
+      var bottom = ctx.createLinearGradient(0, H * 0.42, 0, H);
+      bottom.addColorStop(0, 'rgba(6,7,10,0)');
+      bottom.addColorStop(.55, 'rgba(6,7,10,.74)');
+      bottom.addColorStop(1, 'rgba(6,7,10,.95)');
+      ctx.fillStyle = bottom; ctx.fillRect(0, H * 0.42, W, H * 0.58);
+
+      // Source avatar + name, top-left.
+      var hue = a.hue || 248;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(pad + 28, pad + 28, 28, 0, Math.PI * 2);
+      var av = ctx.createLinearGradient(pad, pad, pad + 56, pad + 56);
+      av.addColorStop(0, 'hsl(' + hue + ',62%,56%)');
+      av.addColorStop(1, 'hsl(' + (hue + 30) + ',62%,46%)');
+      ctx.fillStyle = av; ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = '700 24px ui-sans-serif, system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(a.initials || '').slice(0, 2).toUpperCase(), pad + 28, pad + 30);
+      ctx.restore();
+
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff';
+      ctx.font = '700 30px ui-sans-serif, system-ui, sans-serif';
+      ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 10;
+      ctx.fillText(a.source || '', pad + 70, pad + 29);
+      ctx.shadowBlur = 0;
+
+      drawTopRightIcons(ctx, W - pad - 30, pad + 28);
+
+      // Everything below flows top-down from a fixed block start near the
+      // bottom -- generous enough that a worst-case 3-line headline plus a
+      // 2-line summary never reaches the footer reserved beneath it.
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      var y = H - 470;
+
+      var topicText = String(a.topic || '').toUpperCase();
+      if (topicText) {{
+        ctx.font = '700 24px ui-sans-serif, system-ui, sans-serif';
+        var topicW = ctx.measureText(topicText).width;
+        roundRectPath(ctx, pad, y, topicW + 34, 48, 24);
+        ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle';
+        ctx.fillText(topicText, pad + 17, y + 25);
+        ctx.textBaseline = 'top';
+      }}
+      y += 48 + 22;
+
+      ctx.font = '800 56px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 14;
+      var headlineLines = wrapLines(ctx, a.title, W - pad * 2, 3);
+      headlineLines.forEach(function (line, i) {{ ctx.fillText(line, pad, y + i * 64); }});
+      y += headlineLines.length * 64 + 20;
+
+      ctx.font = '400 34px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,.86)';
+      ctx.shadowBlur = 8;
+      var summaryLines = wrapLines(ctx, a.snippet, W - pad * 2, 2);
+      summaryLines.forEach(function (line, i) {{ ctx.fillText(line, pad, y + i * 44); }});
+      ctx.shadowBlur = 0;
+
+      ctx.font = '600 24px ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,.62)';
+      ctx.fillText('newsdigest', pad, H - pad - 24);
+
+      return canvas;
+    }}
+
+    function loadImageForCanvas(url) {{
+      return new Promise(function (resolve, reject) {{
+        var img = new Image();
+        img.crossOrigin = 'anonymous';   // needed to read pixels back out for export
+        img.referrerPolicy = 'no-referrer';
+        img.onload = function () {{ resolve(img); }};
+        img.onerror = function () {{ reject(new Error('image failed to load')); }};
+        img.src = url;
+      }});
+    }}
+
+    function canvasToPngFile(canvas, name) {{
+      return new Promise(function (resolve, reject) {{
+        canvas.toBlob(function (blob) {{
+          if (!blob) {{ reject(new Error('toBlob returned null (tainted canvas?)')); return; }}
+          resolve(new File([blob], name + '.png', {{ type: 'image/png' }}));
+        }}, 'image/png');
+      }});
+    }}
+
+    function downloadFile(file) {{
+      var url = URL.createObjectURL(file);
+      var link = document.createElement('a');
+      link.href = url; link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(function () {{ URL.revokeObjectURL(url); }}, 4000);
+    }}
+
+    // Old behaviour, kept as the fallback for browsers with no Web Share
+    // Level 2 (file) support and for images a canvas can't read back out
+    // (see the catch in share() below).
+    function shareLinkFallback(a) {{
       var url = location.origin + location.pathname + '#' + a.id;
       var text = a.title + ' — via newsdigest';
       if (navigator.share) {{
@@ -1679,6 +1897,36 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       }} else {{
         toast(url);
       }}
+    }}
+
+    function share(a) {{
+      var imgUrl = a.image ? safeUrl(a.image) : '';
+      if (!imgUrl || !document.createElement('canvas').getContext) {{
+        shareLinkFallback(a);
+        return;
+      }}
+      toast('Preparing image…');
+      loadImageForCanvas(imgUrl)
+        .then(function (img) {{ return canvasToPngFile(buildShareCanvas(a, img), 'newsdigest-' + a.id); }})
+        .then(function (file) {{
+          if (navigator.share && navigator.canShare && navigator.canShare({{ files: [file] }})) {{
+            return navigator.share({{ files: [file], title: a.title, text: a.title + ' — via newsdigest' }})
+              .catch(function (e) {{
+                // AbortError just means the user dismissed the share sheet.
+                if (e && e.name !== 'AbortError') {{ downloadFile(file); toast('Image saved'); }}
+              }});
+          }}
+          downloadFile(file);
+          toast('Image saved');
+        }})
+        .catch(function () {{
+          // Most likely a tainted canvas: this source's image host doesn't
+          // send Access-Control-Allow-Origin, so the pixels can't be read
+          // back out to export. Degrade to the plain link instead of
+          // failing silently.
+          toast("Can't generate an image for this source — sharing the link instead");
+          shareLinkFallback(a);
+        }});
     }}
 
     stage.addEventListener('click', function (e) {{
@@ -1956,6 +2204,15 @@ def main() -> int:
     deduped = dedupe_articles(all_articles)
     merged = len(all_articles) - len(deduped)
 
+    # A card with no image has nothing to show in the .media slot but a bare
+    # placeholder, and the Inshorts-style share export (render_html's JS) has
+    # no photo to composite -- so an imageless story is dropped from the deck
+    # entirely rather than rendered text-only. dedupe_articles() already
+    # prefers an image-bearing representative when merging near-duplicates,
+    # so this only drops stories where *no* source carried an image.
+    no_image = len(deduped) - len([a for a in deduped if a.get("image")])
+    deduped = [a for a in deduped if a.get("image")]
+
     # Newest first, then cap. Undated entries sort last rather than winning the
     # top of the deck by accident.
     deduped.sort(
@@ -1973,8 +2230,10 @@ def main() -> int:
 
     print(f"\nwrote {REPORT_MD.name} + {REPORT_JSON.name} + {REPORT_HTML.name}")
     print(f"  {len(live)}/{len(rows)} feeds graded OK, {sourced} contributed to the deck")
-    print(f"  {len(all_articles)} articles -> {len(deduped)} after merging "
+    print(f"  {len(all_articles)} articles -> {len(deduped) + no_image} after merging "
           f"{merged} cross-agency duplicate{'s' if merged != 1 else ''}")
+    if no_image:
+        print(f"  {no_image} card{'s' if no_image != 1 else ''} dropped for having no image")
     if dropped:
         print(f"  deck capped at {DECK_LIMIT}: {dropped} older card"
               f"{'s' if dropped != 1 else ''} not shown (raise DECK_LIMIT to include them)")
