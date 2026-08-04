@@ -232,6 +232,61 @@ def classify_topic(title: str, snippet: str) -> str:
     return best_topic
 
 
+# Geography, not subject -- orthogonal to TOPIC_KEYWORDS. A Business story
+# can be about China's economy (Asia) or the US Fed (Americas) just as
+# easily as India's budget (India), so this needs its own keyword pass
+# rather than reusing the topic classifier's "World" bucket, which only
+# tags foreign-affairs-flavored stories, not every article's setting.
+REGION_KEYWORDS = {
+    "India": [
+        "india", "indian", "delhi", "mumbai", "bengaluru", "bangalore",
+        "chennai", "kolkata", "hyderabad", "pune", "modi", "bjp",
+        "lok sabha", "rajya sabha", "rupee",
+    ],
+    "Asia": [
+        "china", "chinese", "japan", "japanese", "korea", "korean",
+        "pakistan", "bangladesh", "sri lanka", "nepal", "myanmar",
+        "singapore", "malaysia", "indonesia", "thailand", "vietnam",
+        "philippines", "taiwan", "hong kong",
+    ],
+    "Middle East": [
+        "israel", "palestine", "gaza", "iran", "iraq", "saudi", "emirates",
+        "dubai", "qatar", "syria", "lebanon", "yemen", "middle east",
+    ],
+    "Europe": [
+        "britain", "london", "france", "paris", "germany", "berlin",
+        "italy", "rome", "spain", "madrid", "russia", "moscow", "ukraine",
+        "european union", "brussels",
+    ],
+    "Africa": [
+        "nigeria", "kenya", "south africa", "egypt", "ethiopia", "ghana",
+        "african",
+    ],
+    "Americas": [
+        "united states", "washington", "biden", "trump", "canada",
+        "mexico", "brazil", "argentina", "american",
+    ],
+    "Oceania": [
+        "australia", "australian", "sydney", "melbourne", "new zealand",
+        "auckland",
+    ],
+}
+REGION_PATTERNS = {
+    region: [re.compile(r"\b" + re.escape(kw) + r"\b", re.IGNORECASE) for kw in kws]
+    for region, kws in REGION_KEYWORDS.items()
+}
+
+
+def classify_region(title: str, snippet: str) -> str:
+    text = f"{title} {snippet}"
+    best_region, best_hits = "Other", 0
+    for region, patterns in REGION_PATTERNS.items():
+        hits = sum(1 for p in patterns if p.search(text))
+        if hits > best_hits:
+            best_region, best_hits = region, hits
+    return best_region
+
+
 def entry_image(entry):
     """Best-effort lead image: Media RSS fields first, then an enclosure,
     then the first <img> in the raw (unstripped) body. Feeds vary wildly
@@ -319,6 +374,7 @@ def check(name: str, url: str):
             "snippet": snippet,
             "image": entry_image(e),
             "topic": classify_topic(title, body),
+            "region": classify_region(title, body),
         })
     return row, articles
 
@@ -490,6 +546,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
             "snippet": a["snippet"],
             "image": a.get("image"),
             "topic": a.get("topic", "General"),
+            "region": a.get("region", "Other"),
             "published": a["published"].isoformat() if a["published"] else None,
             "hue": source_hue(a["source"]),
             "initials": source_initials(a["source"]),
@@ -785,8 +842,10 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
      image or an overflowing card -- the exact "looking odd" this exists to
      prevent. Session-only: resets to 100% on reload, no reset button needed. */
   .size-row {{
-    display: flex; align-items: center; gap: .6rem; margin: 0 1.1rem 1rem;
+    display: flex; align-items: center; gap: .6rem;
+    max-width: 260px; margin: .9rem auto 0;
   }}
+  .size-row .size-lbl {{ font-size: .74rem; font-weight: 650; color: var(--sub); }}
   .size-row input[type="range"] {{
     flex: 1; accent-color: var(--accent); height: 1.2rem;
   }}
@@ -1028,6 +1087,8 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     font-size: .68rem; font-weight: 750; letter-spacing: .09em; text-transform: uppercase;
     color: var(--sub); margin: 0 0 .55rem;
   }}
+  .region-chips {{ margin-bottom: 1.3rem; }}
+  .up-next-h {{ padding-top: 1rem; border-top: 1px solid var(--line); }}
   .qi {{
     display: flex; gap: .6rem; align-items: flex-start; width: 100%; text-align: left;
     padding: .55rem .6rem; border-radius: 13px; border: 1px solid transparent;
@@ -1153,13 +1214,6 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         <button class="theme-opt" data-theme="light">Light</button>
         <button class="theme-opt" data-theme="dark">Dark</button>
       </div>
-      <div class="section-head" style="cursor:default">
-        <span class="t">Card size</span>
-      </div>
-      <div class="size-row">
-        <input type="range" id="size-slider" min="75" max="140" step="5" value="100" aria-label="Card size">
-        <span class="size-val" id="size-val">100%</span>
-      </div>
       <div class="section" id="section-topics">
         <button class="section-head" data-toggle="section-topics">
           <span class="t">Interests</span>
@@ -1195,13 +1249,20 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
         </button>
       </div>
+      <div class="size-row" aria-label="Card size">
+        <span class="size-lbl">Size</span>
+        <input type="range" id="size-slider" min="75" max="140" step="5" value="100" aria-label="Card size">
+        <span class="size-val" id="size-val">100%</span>
+      </div>
       <div class="count" id="count"></div>
       <div class="hint">
         <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to move &middot; <kbd>S</kbd> save &middot; drag the card either way
       </div>
     </div>
     <aside class="queue" id="queue">
-      <h3>Up next</h3>
+      <h3>World</h3>
+      <nav class="chipwrap region-chips" id="regions" aria-label="Filter by region"></nav>
+      <h3 class="up-next-h">Up next</h3>
       <div id="qlist"></div>
     </aside>
   </div>
@@ -1235,6 +1296,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     var stage = document.getElementById('stage');
     var topicsEl = document.getElementById('topics');
     var sourcesEl = document.getElementById('sources');
+    var regionsEl = document.getElementById('regions');
     var onbTopicsEl = document.getElementById('onb-topics');
     var qlist = document.getElementById('qlist');
     var countEl = document.getElementById('count');
@@ -1254,6 +1316,23 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       if (Array.isArray(raw)) saved = new Set(raw);
     }} catch (e) {{}}
 
+    // sessionStorage, not localStorage: "seen this session" should reset
+    // when the tab/browser session actually ends, not persist forever like
+    // saved articles do. Refresh (a reload of the same page, same session)
+    // keeps it -- that's the point: land on the first article you haven't
+    // gotten to yet instead of restarting from the top every time.
+    var SEEN_KEY = 'newsdigest:seen';
+    var seen = new Set();
+    try {{
+      var rawSeen = JSON.parse(sessionStorage.getItem(SEEN_KEY) || '[]');
+      if (Array.isArray(rawSeen)) seen = new Set(rawSeen);
+    }} catch (e) {{}}
+    function markSeen(id) {{
+      if (seen.has(id)) return;
+      seen.add(id);
+      try {{ sessionStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(seen))); }} catch (e) {{}}
+    }}
+
     // Interests are multi-select ("as many topics as you like"), unlike the
     // single-select source filter -- an empty set means no topic filtering at
     // all, not "match nothing".
@@ -1271,6 +1350,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
 
     var sources = Array.from(new Set(all.map(function (a) {{ return a.source; }}))).sort();
     var topics = Array.from(new Set(all.map(function (a) {{ return a.topic; }}))).sort();
+    var regions = Array.from(new Set(all.map(function (a) {{ return a.region; }}))).sort();
     var hueOf = {{}};
     all.forEach(function (a) {{ if (!(a.source in hueOf)) hueOf[a.source] = a.hue; }});
 
@@ -1295,6 +1375,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     }})();
 
     var sourceFilter = 'all';
+    var regionFilter = 'all';
     var index = 0;
     var busy = false;   // an exit animation owns the deck; ignore new input
     var renderSeq = 0;  // bumped per render so a finished fly-out can tell if
@@ -1314,6 +1395,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         ? all.filter(function (a) {{ return saved.has(a.id); }})
         : sourceFilter === 'all' ? all : all.filter(function (a) {{ return a.source === sourceFilter; }});
       if (interests.size) list = list.filter(function (a) {{ return interests.has(a.topic); }});
+      if (regionFilter !== 'all') list = list.filter(function (a) {{ return a.region === regionFilter; }});
       return list;
     }}
 
@@ -1385,6 +1467,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     // when the view is unfiltered or spans several topics at once.
     function nextSectionSuggestion() {{
       function matchesOtherFilter(a) {{
+        if (regionFilter !== 'all' && a.region !== regionFilter) return false;
         if (sourceFilter === 'all') return true;
         if (sourceFilter === '__saved__') return saved.has(a.id);
         return a.source === sourceFilter;
@@ -1406,7 +1489,9 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         for (var j = 1; j <= sources.length; j++) {{
           var candS = sources[(startS + j) % sources.length];
           if (candS === curS) break;
-          var countS = all.filter(function (a) {{ return a.source === candS; }}).length;
+          var countS = all.filter(function (a) {{
+            return a.source === candS && (regionFilter === 'all' || a.region === regionFilter);
+          }}).length;
           if (countS > 0) return {{ kind: 'source', value: candS, count: countS, doneLabel: curS }};
         }}
         return null;
@@ -1426,6 +1511,17 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       sourcesEl.querySelectorAll('.chip svg').forEach(function (s) {{
         s.style.width = '.72rem'; s.style.height = '.72rem'; s.style.verticalAlign = '-.1em';
       }});
+    }}
+
+    // Continent/region -- orthogonal to Interests (subject) and Sources
+    // (publisher). Single-select like Sources: a story is set in one place.
+    function renderRegions() {{
+      var h = chip('All', 'data-r', 'all', regionFilter === 'all', undefined, 0);
+      regions.forEach(function (r, i) {{
+        var n = all.filter(function (a) {{ return a.region === r; }}).length;
+        h += chip(esc(r) + ' <span class="n">' + n + '</span>', 'data-r', r, regionFilter === r, undefined, i + 1);
+      }});
+      regionsEl.innerHTML = h;
     }}
 
     /* ---------- cards ---------- */
@@ -1490,6 +1586,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         el.setAttribute('aria-hidden', 'true');
       }} else {{
         attachDrag(el);
+        markSeen(a.id);
       }}
       var im = el.querySelector('.media img');
       if (im) bindImage(im);
@@ -1576,6 +1673,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
           el.style.transform = '';
           el.style.opacity = '';
           attachDrag(el);
+          markSeen(el.dataset.id);
         }} else {{
           el.style.transform = 'translateY(' + (newI * 11) + 'px) scale(' + (1 - newI * 0.045) + ')';
           el.style.opacity = newI === 2 ? '.55' : '.85';
@@ -2007,6 +2105,15 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       render();
     }});
 
+    regionsEl.addEventListener('click', function (e) {{
+      var btn = e.target.closest('.chip');
+      if (!btn) return;
+      regionFilter = btn.dataset.r;
+      index = 0;
+      renderRegions();
+      render();
+    }});
+
     prevBtn.addEventListener('click', goBack);
     nextBtn.addEventListener('click', function () {{
       var top = stage.querySelector('.card.top');
@@ -2036,10 +2143,10 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       if (!id) return false;
       // Clear filters first: a shared card may not be in the current view.
       if (!all.some(function (a) {{ return a.id === id; }})) return false;
-      sourceFilter = 'all'; interests.clear();
+      sourceFilter = 'all'; interests.clear(); regionFilter = 'all';
       index = filtered().findIndex(function (a) {{ return a.id === id; }});
       if (index < 0) index = 0;
-      renderTopics(); renderSources(); render();
+      renderTopics(); renderSources(); renderRegions(); render();
       return true;
     }}
     window.addEventListener('hashchange', jumpToHash);
@@ -2162,7 +2269,21 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
 
     renderTopics();
     renderSources();
-    if (!jumpToHash()) render();
+    renderRegions();
+    if (!jumpToHash()) {{
+      // A deep link always wins over this -- someone opening a shared card
+      // wants that card, not wherever they left off. Otherwise, land on the
+      // first article this session hasn't seen yet (e.g. after tapping
+      // Refresh) instead of restarting from the top every time. If
+      // everything in view has already been seen, index 0 is still fine --
+      // there's nothing unseen to skip to.
+      // Against filtered(), not all -- interests/sourceFilter persist across
+      // reloads too, so the index has to line up with whatever view that
+      // produces, not the unfiltered list.
+      var firstUnseen = filtered().findIndex(function (a) {{ return !seen.has(a.id); }});
+      if (firstUnseen > 0) index = firstUnseen;
+      render();
+    }}
 
     var alreadyOnboarded = false;
     try {{ alreadyOnboarded = !!localStorage.getItem(ONBOARDED_KEY); }} catch (e) {{ alreadyOnboarded = true; }}
