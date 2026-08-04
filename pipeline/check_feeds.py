@@ -535,6 +535,9 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     --glass: rgba(8,9,13,.72);
     --scrim: rgba(0,0,0,.55);
     --radius: 22px;
+    /* User-controlled card size multiplier (drawer slider). 1 = default. Not
+       theme-dependent, so it lives here rather than in the theme blocks. */
+    --card-scale: 1;
     /* Overshoot for anything that should feel physical; flat-out for the rest. */
     --spring: cubic-bezier(.34, 1.4, .64, 1);
     --out: cubic-bezier(.22, 1, .36, 1);
@@ -776,6 +779,21 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     transition: background .18s var(--out), color .18s;
   }}
   .theme-opt.on {{ background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }}
+
+  /* Card-size slider. Scales .stage height and .card width together (one
+     knob, not two) so the aspect ratio can't be broken into a stretched
+     image or an overflowing card -- the exact "looking odd" this exists to
+     prevent. Session-only: resets to 100% on reload, no reset button needed. */
+  .size-row {{
+    display: flex; align-items: center; gap: .6rem; margin: 0 1.1rem 1rem;
+  }}
+  .size-row input[type="range"] {{
+    flex: 1; accent-color: var(--accent); height: 1.2rem;
+  }}
+  .size-row .size-val {{
+    font-size: .74rem; font-weight: 650; color: var(--sub);
+    font-variant-numeric: tabular-nums; width: 2.8rem; text-align: right;
+  }}
   .drawer-footnote {{
     font-size: .7rem; color: var(--sub); opacity: .75; line-height: 1.4;
     padding: .9rem 1.1rem 0; margin: .3rem 0 0; border-top: 1px solid var(--line);
@@ -839,14 +857,14 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     /* Leaves clear room below the card for .ctrls -- this used to be tall
        enough that the card's own drop shadow visually ran into the prev/next
        buttons on short viewports. */
-    height: clamp(380px, 54vh, 500px);
+    height: calc(clamp(380px, 54vh, 500px) * var(--card-scale));
     margin-bottom: .4rem;
     perspective: 1400px;
   }}
 
   .card {{
     position: absolute; inset: 0; margin: auto;
-    width: min(94%, 400px); height: 100%;
+    width: calc(min(94%, 400px) * var(--card-scale)); height: 100%;
     display: flex; flex-direction: column; overflow: hidden;
     background: var(--surface); border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -1057,8 +1075,8 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     /* Landscape cards: image beside the text instead of on top of it.
        Portrait mobile keeps the tall layout defined above untouched --
        these rules only apply from this breakpoint up. */
-    .stage {{ height: clamp(300px, 46vh, 380px); }}
-    .card {{ width: min(94%, 780px); }}
+    .stage {{ height: calc(clamp(300px, 46vh, 380px) * var(--card-scale)); }}
+    .card {{ width: calc(min(94%, 780px) * var(--card-scale)); }}
     .card:not(.end) {{ flex-direction: row; }}   /* .end stays a centered vertical stack */
     .media {{ flex: 0 0 40%; height: 100%; }}
     .media .scrim {{ display: none; }}   /* nothing overlays the image in this layout */
@@ -1134,6 +1152,13 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         <button class="theme-opt" data-theme="auto">Auto</button>
         <button class="theme-opt" data-theme="light">Light</button>
         <button class="theme-opt" data-theme="dark">Dark</button>
+      </div>
+      <div class="section-head" style="cursor:default">
+        <span class="t">Card size</span>
+      </div>
+      <div class="size-row">
+        <input type="range" id="size-slider" min="75" max="140" step="5" value="100" aria-label="Card size">
+        <span class="size-val" id="size-val">100%</span>
       </div>
       <div class="section" id="section-topics">
         <button class="section-head" data-toggle="section-topics">
@@ -2074,6 +2099,19 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       var mode = btn.dataset.theme;
       applyTheme(mode);
       try {{ localStorage.setItem(THEME_KEY, mode); }} catch (e2) {{}}
+    }});
+
+    // Card-size slider: one knob scales .stage height and .card width
+    // together (both read var(--card-scale) in the CSS above), so there's no
+    // way to stretch the card into a bad aspect ratio -- just bigger or
+    // smaller, proportionally. Session-only by design: reloading resets to
+    // 100% rather than risking a user getting stuck on an odd size forever.
+    var sizeSlider = document.getElementById('size-slider');
+    var sizeVal = document.getElementById('size-val');
+    sizeSlider.addEventListener('input', function () {{
+      var pct = sizeSlider.value;
+      document.documentElement.style.setProperty('--card-scale', pct / 100);
+      sizeVal.textContent = pct + '%';
     }});
 
     function setDrawer(open) {{
