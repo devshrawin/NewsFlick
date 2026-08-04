@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-08-04T11:06:59.286411+00:00",
+  "checked_at": "2026-08-04T11:48:41.675964+00:00",
   "feeds": [
     {
       "name": "The Hindu",
@@ -7,8 +7,8 @@
       "ok": true,
       "note": "",
       "entries": 60,
-      "age_hours": 0.2,
-      "median_chars": 195,
+      "age_hours": 0.1,
+      "median_chars": 191,
       "dated": 60,
       "verdict": "OK"
     },
@@ -50,10 +50,10 @@
       "url": "https://timesofindia.indiatimes.com/rssfeedstopstories.cms",
       "ok": true,
       "note": "",
-      "entries": 45,
+      "entries": 44,
       "age_hours": 0.6,
-      "median_chars": 393,
-      "dated": 45,
+      "median_chars": 398,
+      "dated": 44,
       "verdict": "OK"
     },
     {
@@ -62,8 +62,8 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 0.8,
-      "median_chars": 146,
+      "age_hours": 0.4,
+      "median_chars": 145,
       "dated": 20,
       "verdict": "OK"
     },
@@ -74,7 +74,7 @@
       "note": "",
       "entries": 200,
       "age_hours": 0.1,
-      "median_chars": 166,
+      "median_chars": 165,
       "dated": 200,
       "verdict": "OK"
     },
@@ -94,10 +94,10 @@
       "url": "https://www.freepressjournal.in/stories.rss",
       "ok": true,
       "note": "",
-      "entries": 106,
-      "age_hours": 0.3,
-      "median_chars": 2609,
-      "dated": 106,
+      "entries": 109,
+      "age_hours": 0.5,
+      "median_chars": 2566,
+      "dated": 109,
       "verdict": "OK"
     },
     {
@@ -105,10 +105,10 @@
       "url": "https://www.deccanchronicle.com/feeds.xml",
       "ok": true,
       "note": "",
-      "entries": 519,
-      "age_hours": 0.1,
+      "entries": 517,
+      "age_hours": 0.0,
       "median_chars": 149,
-      "dated": 519,
+      "dated": 517,
       "verdict": "OK"
     },
     {
@@ -117,8 +117,8 @@
       "ok": true,
       "note": "",
       "entries": 50,
-      "age_hours": 0.2,
-      "median_chars": 2212,
+      "age_hours": 0.0,
+      "median_chars": 1597,
       "dated": 50,
       "verdict": "OK"
     },
@@ -128,8 +128,8 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 2.0,
-      "median_chars": 1785,
+      "age_hours": 0.1,
+      "median_chars": 1062,
       "dated": 10,
       "verdict": "OK"
     },
@@ -139,8 +139,8 @@
       "ok": true,
       "note": "",
       "entries": 35,
-      "age_hours": 0.0,
-      "median_chars": 236,
+      "age_hours": 0.1,
+      "median_chars": 215,
       "dated": 35,
       "verdict": "OK"
     },
@@ -150,7 +150,7 @@
       "ok": true,
       "note": "",
       "entries": 51,
-      "age_hours": 0.4,
+      "age_hours": 0.8,
       "median_chars": 0,
       "dated": 51,
       "verdict": "OK"
@@ -161,7 +161,7 @@
       "ok": true,
       "note": "",
       "entries": 15,
-      "age_hours": 19994.9,
+      "age_hours": 19995.6,
       "median_chars": 161,
       "dated": 15,
       "verdict": "STALE"
@@ -183,7 +183,7 @@
       "ok": true,
       "note": "",
       "entries": 100,
-      "age_hours": 1.1,
+      "age_hours": 0.2,
       "median_chars": 460,
       "dated": 100,
       "verdict": "OK"
@@ -194,8 +194,8 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 0.5,
-      "median_chars": 63,
+      "age_hours": 0.4,
+      "median_chars": 60,
       "dated": 10,
       "verdict": "OK"
     },
@@ -205,7 +205,7 @@
       "ok": true,
       "note": "",
       "entries": 24,
-      "age_hours": 0.2,
+      "age_hours": 0.9,
       "median_chars": 3259,
       "dated": 24,
       "verdict": "OK"
@@ -216,7 +216,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 23.0,
+      "age_hours": 23.7,
       "median_chars": 7674,
       "dated": 10,
       "verdict": "OK"
@@ -227,7 +227,7 @@
       "ok": true,
       "note": "",
       "entries": 100,
-      "age_hours": 0.2,
+      "age_hours": 0.7,
       "median_chars": 93,
       "dated": 100,
       "verdict": "OK"
@@ -239,7 +239,7 @@
       "note": "",
       "entries": 70,
       "age_hours": 0.1,
-      "median_chars": 156,
+      "median_chars": 158,
       "dated": 70,
       "verdict": "OK"
     },
@@ -249,8 +249,8 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 0.1,
-      "median_chars": 2353,
+      "age_hours": 0.0,
+      "median_chars": 2416,
       "dated": 10,
       "verdict": "OK"
     },
@@ -271,7 +271,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 0.8,
+      "age_hours": 1.5,
       "median_chars": 1484,
       "dated": 10,
       "verdict": "OK"
@@ -282,8 +282,8 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 3.4,
-      "median_chars": 2949,
+      "age_hours": 0.6,
+      "median_chars": 2731,
       "dated": 10,
       "verdict": "OK"
     },
@@ -293,7 +293,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 4.0,
+      "age_hours": 4.7,
       "median_chars": 7362,
       "dated": 10,
       "verdict": "OK"
@@ -304,7 +304,7 @@
       "ok": true,
       "note": "",
       "entries": 31,
-      "age_hours": 0.2,
+      "age_hours": 0.5,
       "median_chars": 117,
       "dated": 31,
       "verdict": "OK"
@@ -315,8 +315,8 @@
       "ok": true,
       "note": "",
       "entries": 17,
-      "age_hours": 7.3,
-      "median_chars": 98,
+      "age_hours": 2.5,
+      "median_chars": 99,
       "dated": 17,
       "verdict": "OK"
     },
@@ -326,8 +326,8 @@
       "ok": true,
       "note": "",
       "entries": 25,
-      "age_hours": 0.4,
-      "median_chars": 115,
+      "age_hours": 0.5,
+      "median_chars": 109,
       "dated": 25,
       "verdict": "OK"
     },
@@ -337,7 +337,7 @@
       "ok": true,
       "note": "",
       "entries": 146,
-      "age_hours": 0.0,
+      "age_hours": 0.7,
       "median_chars": 193,
       "dated": 146,
       "verdict": "OK"
@@ -348,8 +348,8 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 0.2,
-      "median_chars": 218,
+      "age_hours": 0.3,
+      "median_chars": 222,
       "dated": 10,
       "verdict": "OK"
     }
