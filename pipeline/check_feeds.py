@@ -516,7 +516,7 @@ def dedupe_articles(articles: list) -> list:
     return out
 
 
-def render_html(articles: list, sourced_count: int, total_count: int) -> str:
+def render_html(articles: list) -> str:
     """Self-contained swipeable article deck -- open reports/index.html (or
     the Pages URL) instead of poking at news.db to see what the feeds have.
 
@@ -727,8 +727,6 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
   }}
   .head-right {{ display: flex; align-items: center; gap: .55rem; margin-left: auto; }}
   .fresh {{ font-size: .74rem; color: var(--sub); font-variant-numeric: tabular-nums; white-space: nowrap; }}
-  /* Feed count is nice-to-know, not worth crowding a phone header. */
-  @media (max-width: 560px) {{ .fresh.sep, .fresh[title] {{ display: none; }} }}
   .ghost {{
     display: inline-flex; align-items: center; gap: .34rem;
     border: 1px solid var(--line-2); background: var(--surface); color: var(--sub);
@@ -763,7 +761,6 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     from {{ opacity: 0; transform: translateY(6px) scale(.94); }}
     to   {{ opacity: 1; transform: none; }}
   }}
-  .chip .n {{ opacity: .55; font-weight: 550; margin-left: .1rem; }}
   .chip:hover {{ color: var(--ink); border-color: var(--line-2); }}
   .chip:active {{ transform: scale(.94); }}
   .chip.on {{
@@ -772,7 +769,6 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       hsl(var(--hue, 248) 62% 54%), hsl(calc(var(--hue, 248) + 26) 66% 48%));
     box-shadow: 0 2px 10px -4px hsl(var(--hue, 248) 62% 54% / .7);
   }}
-  .chip.on .n {{ opacity: .8; }}
   .chip[data-f="__saved__"].on {{
     background: linear-gradient(135deg, var(--gold), #d98324);
     box-shadow: 0 2px 10px -4px color-mix(in oklab, var(--gold) 70%, transparent);
@@ -1076,19 +1072,12 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
   .rnd:active:not(:disabled) {{ transform: scale(.9); }}
   .rnd:disabled {{ opacity: .35; cursor: default; }}
   .count {{ text-align: center; color: var(--sub); font-size: .78rem; margin-top: .7rem; font-variant-numeric: tabular-nums; }}
-  .hint {{ display: none; text-align: center; color: var(--sub); font-size: .74rem; margin-top: .3rem; opacity: .75; }}
-  .hint kbd {{
-    font: inherit; font-size: .7rem; padding: .04rem .3rem; border-radius: 5px;
-    border: 1px solid var(--line-2); background: var(--surface);
-  }}
 
   .queue {{ display: none; }}
   .queue h3 {{
     font-size: .68rem; font-weight: 750; letter-spacing: .09em; text-transform: uppercase;
     color: var(--sub); margin: 0 0 .55rem;
   }}
-  .region-chips {{ margin-bottom: 1.3rem; }}
-  .up-next-h {{ padding-top: 1rem; border-top: 1px solid var(--line); }}
   .qi {{
     display: flex; gap: .6rem; align-items: flex-start; width: 100%; text-align: left;
     padding: .55rem .6rem; border-radius: 13px; border: 1px solid transparent;
@@ -1157,7 +1146,6 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
   @media (min-width: 900px) {{
     .layout {{ grid-template-columns: minmax(0, 1fr) 296px; gap: 2.25rem; }}
     .queue {{ display: block; position: sticky; top: 8.5rem; }}
-    .hint {{ display: block; }}
   }}
 
   @media (prefers-reduced-motion: reduce) {{
@@ -1183,8 +1171,6 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       </button>
       <div class="brand"><span class="dot" aria-hidden="true"></span> newsdigest</div>
       <div class="head-right">
-        <span class="fresh" title="{sourced_count} of {total_count} feeds contributed at least one article to this deck. Feed-by-feed health lives in reports/feed_check.md.">{sourced_count}/{total_count} feeds</span>
-        <span class="fresh sep" aria-hidden="true">&middot;</span>
         <span class="fresh" id="fresh"></span>
         <button class="ghost" id="refresh" title="Check for a newer snapshot">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1233,6 +1219,15 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
           <nav class="chipwrap" id="sources" aria-label="Filter by source"></nav>
         </div></div>
       </div>
+      <div class="section" id="section-regions">
+        <button class="section-head" data-toggle="section-regions">
+          <span class="t">World</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="section-panel"><div>
+          <nav class="chipwrap" id="regions" aria-label="Filter by region"></nav>
+        </div></div>
+      </div>
       <p class="drawer-footnote">Leaning shown on cards is from public ratings where available, hand-curated
         (not an API) -- most sources aren't independently rated.</p>
     </div>
@@ -1255,14 +1250,9 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         <span class="size-val" id="size-val">100%</span>
       </div>
       <div class="count" id="count"></div>
-      <div class="hint">
-        <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to move &middot; <kbd>S</kbd> save &middot; drag the card either way
-      </div>
     </div>
     <aside class="queue" id="queue">
-      <h3>World</h3>
-      <nav class="chipwrap region-chips" id="regions" aria-label="Filter by region"></nav>
-      <h3 class="up-next-h">Up next</h3>
+      <h3>Up next</h3>
       <div id="qlist"></div>
     </aside>
   </div>
@@ -1441,8 +1431,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       if (!el) return;
       var h = chip('All topics', 'data-t', 'all', interests.size === 0, undefined, 0);
       topics.forEach(function (t, i) {{
-        var n = all.filter(function (a) {{ return a.topic === t; }}).length;
-        h += chip(esc(t) + ' <span class="n">' + n + '</span>', 'data-t', t, interests.has(t), undefined, i + 1);
+        h += chip(esc(t), 'data-t', t, interests.has(t), undefined, i + 1);
       }});
       el.innerHTML = h;
     }}
@@ -1501,10 +1490,9 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
 
     function renderSources() {{
       var h = chip('All', 'data-f', 'all', sourceFilter === 'all', undefined, 0);
-      h += chip(ICON.star + ' ' + saved.size, 'data-f', '__saved__', sourceFilter === '__saved__', undefined, 1);
+      h += chip(ICON.star, 'data-f', '__saved__', sourceFilter === '__saved__', undefined, 1);
       sources.forEach(function (s, i) {{
-        var n = all.filter(function (a) {{ return a.source === s; }}).length;
-        h += chip(esc(s) + ' <span class="n">' + n + '</span>', 'data-f', s, sourceFilter === s, hueOf[s], i + 2);
+        h += chip(esc(s), 'data-f', s, sourceFilter === s, hueOf[s], i + 2);
       }});
       sourcesEl.innerHTML = h;
       // The star glyph inside a chip must not swallow the click target.
@@ -1518,8 +1506,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
     function renderRegions() {{
       var h = chip('All', 'data-r', 'all', regionFilter === 'all', undefined, 0);
       regions.forEach(function (r, i) {{
-        var n = all.filter(function (a) {{ return a.region === r; }}).length;
-        h += chip(esc(r) + ' <span class="n">' + n + '</span>', 'data-r', r, regionFilter === r, undefined, i + 1);
+        h += chip(esc(r), 'data-r', r, regionFilter === r, undefined, i + 1);
       }});
       regionsEl.innerHTML = h;
     }}
@@ -1623,7 +1610,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         var next = list.length ? nextSectionSuggestion() : null;
         if (next) {{
           end.innerHTML = '<div class="big">&#10003;</div><h2>' + esc(next.doneLabel) + ' done</h2>'
-            + '<p>' + next.count + ' more in ' + esc(next.value) + '.</p>'
+            + '<p>More in ' + esc(next.value) + '.</p>'
             + '<button class="onb-go" data-act="next-section" data-kind="' + next.kind + '" data-value="' + esc(next.value) + '">'
             + 'Continue to ' + esc(next.value) + '</button>'
             + '<button class="ghost" data-act="restart" style="margin-top:.6rem">Start over instead</button>';
@@ -1638,7 +1625,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
         return;
       }}
 
-      countEl.textContent = (index + 1) + ' of ' + list.length;
+      countEl.textContent = '';
 
       // Paint back-to-front so the top card is last in the DOM.
       var depth = Math.min(3, list.length - index);
@@ -1660,7 +1647,7 @@ def render_html(articles: list, sourced_count: int, total_count: int) -> str:
       busy = false;
       renderSeq++;
       paintChrome(list);
-      countEl.textContent = (index + 1) + ' of ' + list.length;
+      countEl.textContent = '';
 
       var remaining = Array.prototype.slice.call(stage.querySelectorAll('.card'));
       remaining.forEach(function (el) {{
@@ -2385,7 +2372,7 @@ def main() -> int:
     # that merely graded OK: all_articles takes anything with r["ok"], which
     # includes STALE/FUTURE/NO DATES, so len(live) would understate the deck.
     sourced = len({a["source"] for a in deck})
-    REPORT_HTML.write_text(render_html(deck, sourced, len(rows)), encoding="utf-8")
+    REPORT_HTML.write_text(render_html(deck), encoding="utf-8")
 
     print(f"\nwrote {REPORT_MD.name} + {REPORT_JSON.name} + {REPORT_HTML.name}")
     print(f"  {len(live)}/{len(rows)} feeds graded OK, {sourced} contributed to the deck")
