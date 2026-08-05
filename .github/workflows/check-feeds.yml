@@ -1,29 +1,21 @@
 name: Check feeds
 
-# Runs every 45 minutes, all day (32 runs/day), or tap Actions -> Check feeds
-# -> Run workflow for an on-demand run. No API keys needed.
+# Triggered externally every 45 minutes by a free cron pinger (cron-job.org)
+# calling the GitHub REST API's workflow_dispatch endpoint -- see README for
+# the exact setup. No API keys are stored in this repo; the pinger holds its
+# own PAT.
 #
-# Cron can't express a flat "every 45 minutes" in one line -- 45 doesn't
-# divide 60, so a naive "*/45 * * * *" only ever fires at :00 and :45 (a
-# 45/15 min alternating gap, not even spacing) and still hits :00 every hour.
-# Since lcm(45, 60) = 180, the true pattern repeats every 3 hours at
-# offsets +0/+45/+90/+135 min. Picking a start minute of :13 (instead of :00)
-# keeps every run off the most congested cron slot on GitHub -- verified
-# hourly "0 * * * *" bit us: 4+ hours and 8 runs passed with zero
-# schedule-triggered runs (all manual) before that fix. These three lines
-# together produce exactly :13, :58, :43, :28 cycling every 3 hours --
-# verified programmatically: 32 runs/day, every gap exactly 45 min including
-# the midnight wrap, none on :00.
-#
-# GitHub disables `schedule` triggers after 60 days with no repo activity
-# (any push/commit resets the clock) -- re-enable from the Actions tab if
-# that happens.
+# GitHub's own `schedule:` trigger used to live here (three offset cron
+# lines emulating a 45-min cadence). Dropped it after checking the actual
+# run history via the REST API: schedule-triggered runs were arriving
+# 15 min to 10+ hours apart instead of every 45 -- `schedule` is documented
+# by GitHub as best-effort with no SLA, and gets worse the more frequently
+# you ask for it, with no catch-up for a dropped tick. workflow_dispatch,
+# by contrast, fired instantly on all 16 manual runs checked -- so an
+# external, reliable clock calling that endpoint is the fix, not a
+# different cron expression.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "13,58 0-23/3 * * *"
-    - cron: "43 1-23/3 * * *"
-    - cron: "28 2-23/3 * * *"
 
 permissions:
   contents: write

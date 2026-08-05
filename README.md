@@ -63,18 +63,41 @@ That keeps the tuning loop at seconds rather than minutes.
 
 ## Running the feed check
 
-Runs automatically every hour (`schedule` trigger), or on demand from
+Triggered every 45 minutes by an external free cron pinger (cron-job.org)
+calling GitHub's REST API `workflow_dispatch` endpoint, or on demand from
 Actions tab → **Check feeds** → **Run workflow**. Takes about a minute.
 Writes `reports/feed_check.md`, `reports/feed_check.json`, and
 `reports/index.html`, and pushes them back to the repo.
 
-GitHub disables `schedule` triggers on a repo after 60 days with no activity
-at all (any push resets the clock) — re-enable it from the Actions tab if a
-long-idle repo stops running.
+GitHub's own `schedule` trigger used to run this, but checking the actual
+run history (`.../actions/workflows/{id}/runs` via the REST API) showed
+schedule-triggered runs arriving anywhere from 15 minutes to 10+ hours
+apart instead of every 45 — GitHub documents `schedule` as best-effort
+with no SLA, and it gets less reliable the more frequently you ask for it,
+with no catch-up for a dropped tick. `workflow_dispatch` fired instantly
+on every one of 16 manual runs checked, so the fix was to point a
+reliable external clock at that endpoint instead of tuning the cron
+expression further. Setup:
+
+1. GitHub → Settings → Developer settings → **Fine-grained personal
+   access tokens** → generate one scoped to only this repo, with
+   **Actions: Read and write** permission. Copy the token.
+2. Free account at cron-job.org (or similar) → new cron job:
+   - URL: `https://api.github.com/repos/devshrawin/newsdigest/actions/workflows/check-feeds.yml/dispatches`
+   - Method: `POST`
+   - Headers: `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`, `Content-Type: application/json`
+   - Body: `{"ref":"main"}`
+   - Schedule: every 45 minutes
+3. Fine-grained tokens require an expiry (max 1 year) — the pinger silently
+   stops working once it expires; put a reminder in before that date.
 
 The workflow also deploys `reports/` to GitHub Pages. **One-time setup:**
 Settings → Pages → Source → **GitHub Actions**. After that, the run's job
-summary links straight to the deck.
+summary links straight to the deck. The `github-pages` environment's
+branch protection rule (Settings → Environments → github-pages) controls
+which branches are allowed to deploy — keep it restricted to `main` day
+to day, since there's only one live Pages site and any allowed branch's
+run overwrites it.
 
 Feeds marked DEAD or STALE get deleted from `feeds.yaml` or their URL fixed.
 
@@ -173,10 +196,12 @@ makes it an experiment rather than a hobby project.
 - Saved ids are pruned against the current snapshot on load. They accumulate
   across hourly rebuilds but only ids still present can be displayed, so the
   chip counted articles the Saved view could not show.
-- The workflow's `cron` is `"17 * * * *"`, not `"0 * * * *"`. Verified live:
-  with `:00`, 8 runs and 4+ hours passed with zero schedule-triggered runs
-  (all manual) — top-of-hour is the single most congested cron slot on
-  GitHub, and scheduled runs can be delayed or dropped under that load.
+- The workflow no longer uses GitHub's `schedule` trigger at all (an
+  external cron pinger calls `workflow_dispatch` instead — see above).
+  The original fix here was offsetting off `:00`, the most congested cron
+  slot on GitHub; that helped some but the underlying run-history data
+  (checked via the REST API weeks later) showed `schedule` still drifting
+  by hours regardless of offset, which is what actually forced the switch.
 - `render()`'s full DOM rebuild on every `advance()` is why a swipe used to
   visibly jump: the promoted card popped straight to its final position
   instead of animating there, since a freshly-created element has nothing
