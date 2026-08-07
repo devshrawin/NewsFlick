@@ -1162,7 +1162,20 @@ def render_html(articles: list) -> str:
      is untouched. The SIZE slider is hidden here too -- once the card
      already fills the screen there's nothing left to scale it into. */
   @media (max-width: 899px) {{
-    body {{ height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }}
+    /* svh, not dvh -- dvh reports the *expanded*-toolbar height, which is
+       briefly taller than what's actually on screen while Safari's address
+       bar is still showing on load. That gap made the page a few px taller
+       than the visible area, and iOS happily treats that sliver as
+       rubber-band-scrollable even with overflow:hidden set -- a drag
+       revealed a strip of the next peeking card and a slab of black below
+       it. svh is the guaranteed-visible floor (toolbar fully expanded), so
+       the column never exceeds what's on screen in the first place.
+       overscroll-behavior is a second lock against any residual bounce. */
+    html {{ height: 100%; overflow: hidden; }}
+    body {{
+      height: 100vh; height: 100svh; display: flex; flex-direction: column;
+      overflow: hidden; overscroll-behavior: none;
+    }}
     header {{ flex: none; }}
     /* margin: 0 auto in the base rule (desktop centering) forces auto-margin
        shrink-to-fit under flex, overriding stretch -- kill it here so the
