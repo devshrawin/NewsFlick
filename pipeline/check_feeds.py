@@ -568,6 +568,10 @@ def render_html(articles: list) -> str:
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="A swipeable digest of Indian news, rebuilt every hour.">
 <title>newsdigest</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0e0f14">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -1129,6 +1133,28 @@ def render_html(articles: list) -> str:
   @media (max-width: 640px) {{
     .layout {{ padding-left: 0; padding-right: 0; }}
     .card {{ width: 100%; border-radius: 0; border-width: 1px 0; }}
+  }}
+
+  /* Below the desktop breakpoint, stop clamping .stage to a fixed height
+     and let it fill whatever's actually left of the viewport -- the old
+     `clamp(380px, 54vh, 500px)` capped the card at roughly half the
+     screen on tall phones, leaving a dead black gap below the controls.
+     Scoped to this media query only (not the base `body` rule above) so
+     desktop's landscape layout, which relies on content sizing itself,
+     is untouched. The SIZE slider is hidden here too -- once the card
+     already fills the screen there's nothing left to scale it into. */
+  @media (max-width: 899px) {{
+    body {{ height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }}
+    header {{ flex: none; }}
+    /* margin: 0 auto in the base rule (desktop centering) forces auto-margin
+       shrink-to-fit under flex, overriding stretch -- kill it here so the
+       column actually fills the full width instead of floating narrow and
+       centered. */
+    .layout {{ flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: stretch; margin: 0; max-width: none; }}
+    .layout > div:first-child {{ flex: 1; min-height: 0; display: flex; flex-direction: column; }}
+    .stage {{ flex: 1; min-height: 0; height: auto; }}
+    .ctrls, .count {{ flex: none; }}
+    .size-row {{ display: none; }}
   }}
 
   /* Landscape phones: the mobile portrait card forces a >=380px-tall stage
@@ -2267,6 +2293,10 @@ def render_html(articles: list) -> str:
     }});
 
     /* ---------- boot ---------- */
+
+    if ('serviceWorker' in navigator) {{
+      navigator.serviceWorker.register('sw.js').catch(function () {{}});
+    }}
 
     renderTopics();
     renderSources();
