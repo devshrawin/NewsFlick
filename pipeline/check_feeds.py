@@ -568,6 +568,13 @@ def render_html(articles: list) -> str:
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="A swipeable digest of Indian news, rebuilt every hour.">
 <title>newsdigest</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0e0f14">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* Dark is the default look regardless of system preference -- only an
      explicit `prefers-color-scheme: light` gets the light palette below.
@@ -575,26 +582,28 @@ def render_html(articles: list) -> str:
      scrollbars to render dark instead of fighting the page. */
   :root {{
     color-scheme: dark;
-    --bg: #08090d;
-    --bg-2: #0d0f16;
-    --surface: #16181f;
-    --surface-2: #1b1e27;
-    --ink: #edeef2;
-    --sub: #8f96a6;
-    --line: rgba(255,255,255,.08);
-    --line-2: rgba(255,255,255,.14);
-    --accent: #8b8bf0;
-    --accent-2: #f472b6;
-    --gold: #f0b95c;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
-    --shadow-md: 0 2px 6px rgba(0,0,0,.4), 0 12px 24px -14px rgba(0,0,0,.6);
-    --shadow-xl: 0 8px 20px -10px rgba(0,0,0,.6), 0 32px 64px -32px rgba(0,0,0,.8);
-    --glass: rgba(8,9,13,.72);
-    --scrim: rgba(0,0,0,.55);
+    --bg: oklch(0.15 0.012 275);
+    --bg-2: oklch(0.19 0.018 285);
+    --glass: oklch(0.28 0.02 280 / 0.34);
+    --glass-2: oklch(0.32 0.02 280 / 0.22);
+    --ink: oklch(0.96 0.008 280);
+    --sub: oklch(0.78 0.014 280);
+    --line: oklch(0.85 0.03 280 / 0.08);
+    --line-2: oklch(0.85 0.03 280 / 0.14);
+    --accent: oklch(0.72 0.15 278);
+    --accent-2: oklch(0.72 0.15 278 / 0.16);
+    --gold: oklch(0.78 0.15 85);
+    --shadow-sm: 0 6px 16px -10px oklch(0.08 0.02 280 / 0.6);
+    --shadow-md: 0 14px 32px -14px oklch(0.08 0.02 280 / 0.68);
+    --shadow-xl: 0 24px 60px -12px oklch(0.08 0.02 280 / 0.75);
+    --scrim: oklch(0.1 0.02 280 / 0.5);
     --radius: 22px;
     /* User-controlled card size multiplier (drawer slider). 1 = default. Not
        theme-dependent, so it lives here rather than in the theme blocks. */
     --card-scale: 1;
+    --font-serif: "Newsreader", Georgia, serif;
+    --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
     /* Overshoot for anything that should feel physical; flat-out for the rest. */
     --spring: cubic-bezier(.34, 1.4, .64, 1);
     --out: cubic-bezier(.22, 1, .36, 1);
@@ -602,22 +611,21 @@ def render_html(articles: list) -> str:
   @media (prefers-color-scheme: light) {{
     :root {{
       color-scheme: light;
-      --bg: #f6f7fb;
-      --bg-2: #eceef6;
-      --surface: #ffffff;
-      --surface-2: #fbfbfe;
-      --ink: #10111a;
-      --sub: #6a7080;
-      --line: rgba(16,17,26,.08);
-      --line-2: rgba(16,17,26,.14);
-      --accent: #5b5bd6;
-      --accent-2: #d6409f;
-      --gold: #e8a33d;
-      --shadow-sm: 0 1px 2px rgba(16,17,26,.05);
-      --shadow-md: 0 2px 6px rgba(16,17,26,.06), 0 12px 24px -14px rgba(16,17,26,.14);
-      --shadow-xl: 0 8px 20px -10px rgba(16,17,26,.22), 0 32px 64px -32px rgba(16,17,26,.30);
-      --glass: rgba(246,247,251,.72);
-      --scrim: rgba(10,10,16,.4);
+      --bg: oklch(0.97 0.006 280);
+      --bg-2: oklch(0.93 0.012 285);
+      --glass: oklch(1 0 0 / 0.6);
+      --glass-2: oklch(1 0 0 / 0.42);
+      --ink: oklch(0.24 0.02 280);
+      --sub: oklch(0.46 0.02 280);
+      --line: oklch(0.35 0.03 280 / 0.08);
+      --line-2: oklch(0.35 0.03 280 / 0.14);
+      --accent: oklch(0.52 0.17 278);
+      --accent-2: oklch(0.52 0.17 278 / 0.12);
+      --gold: oklch(0.62 0.15 75);
+      --shadow-sm: 0 6px 16px -12px oklch(0.4 0.03 280 / 0.22);
+      --shadow-md: 0 14px 32px -18px oklch(0.4 0.03 280 / 0.26);
+      --shadow-xl: 0 24px 60px -18px oklch(0.4 0.03 280 / 0.28);
+      --scrim: oklch(0.1 0.02 280 / 0.4);
     }}
   }}
 
@@ -630,25 +638,27 @@ def render_html(articles: list) -> str:
      the "Auto" default. */
   :root[data-theme="dark"] {{
     color-scheme: dark;
-    --bg: #08090d; --bg-2: #0d0f16; --surface: #16181f; --surface-2: #1b1e27;
-    --ink: #edeef2; --sub: #8f96a6;
-    --line: rgba(255,255,255,.08); --line-2: rgba(255,255,255,.14);
-    --accent: #8b8bf0; --accent-2: #f472b6; --gold: #f0b95c;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
-    --shadow-md: 0 2px 6px rgba(0,0,0,.4), 0 12px 24px -14px rgba(0,0,0,.6);
-    --shadow-xl: 0 8px 20px -10px rgba(0,0,0,.6), 0 32px 64px -32px rgba(0,0,0,.8);
-    --glass: rgba(8,9,13,.72); --scrim: rgba(0,0,0,.55);
+    --bg: oklch(0.15 0.012 275); --bg-2: oklch(0.19 0.018 285);
+    --glass: oklch(0.28 0.02 280 / 0.34); --glass-2: oklch(0.32 0.02 280 / 0.22);
+    --ink: oklch(0.96 0.008 280); --sub: oklch(0.78 0.014 280);
+    --line: oklch(0.85 0.03 280 / 0.08); --line-2: oklch(0.85 0.03 280 / 0.14);
+    --accent: oklch(0.72 0.15 278); --accent-2: oklch(0.72 0.15 278 / 0.16); --gold: oklch(0.78 0.15 85);
+    --shadow-sm: 0 6px 16px -10px oklch(0.08 0.02 280 / 0.6);
+    --shadow-md: 0 14px 32px -14px oklch(0.08 0.02 280 / 0.68);
+    --shadow-xl: 0 24px 60px -12px oklch(0.08 0.02 280 / 0.75);
+    --scrim: oklch(0.1 0.02 280 / 0.5);
   }}
   :root[data-theme="light"] {{
     color-scheme: light;
-    --bg: #f6f7fb; --bg-2: #eceef6; --surface: #ffffff; --surface-2: #fbfbfe;
-    --ink: #10111a; --sub: #6a7080;
-    --line: rgba(16,17,26,.08); --line-2: rgba(16,17,26,.14);
-    --accent: #5b5bd6; --accent-2: #d6409f; --gold: #e8a33d;
-    --shadow-sm: 0 1px 2px rgba(16,17,26,.05);
-    --shadow-md: 0 2px 6px rgba(16,17,26,.06), 0 12px 24px -14px rgba(16,17,26,.14);
-    --shadow-xl: 0 8px 20px -10px rgba(16,17,26,.22), 0 32px 64px -32px rgba(16,17,26,.30);
-    --glass: rgba(246,247,251,.72); --scrim: rgba(10,10,16,.4);
+    --bg: oklch(0.97 0.006 280); --bg-2: oklch(0.93 0.012 285);
+    --glass: oklch(1 0 0 / 0.6); --glass-2: oklch(1 0 0 / 0.42);
+    --ink: oklch(0.24 0.02 280); --sub: oklch(0.46 0.02 280);
+    --line: oklch(0.35 0.03 280 / 0.08); --line-2: oklch(0.35 0.03 280 / 0.14);
+    --accent: oklch(0.52 0.17 278); --accent-2: oklch(0.52 0.17 278 / 0.12); --gold: oklch(0.62 0.15 75);
+    --shadow-sm: 0 6px 16px -12px oklch(0.4 0.03 280 / 0.22);
+    --shadow-md: 0 14px 32px -18px oklch(0.4 0.03 280 / 0.26);
+    --shadow-xl: 0 24px 60px -18px oklch(0.4 0.03 280 / 0.28);
+    --scrim: oklch(0.1 0.02 280 / 0.4);
   }}
 
   * {{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }}
@@ -657,8 +667,7 @@ def render_html(articles: list) -> str:
      a large empty strip below. Content sizes itself now. */
   body {{
     margin: 0;
-    font-family: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI Variable Text",
-                 "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    font-family: var(--font-sans);
     background: var(--bg);
     color: var(--ink);
     line-height: 1.45;
@@ -670,11 +679,11 @@ def render_html(articles: list) -> str:
   /* Slow-drifting colour wash. Fixed + behind everything, never scrolls. */
   .mesh {{
     position: fixed; inset: -20% -10% auto -10%; height: 70vh; z-index: 0;
-    pointer-events: none; opacity: .5; filter: blur(60px);
+    pointer-events: none; opacity: .3; filter: blur(60px);
     background:
-      radial-gradient(38% 44% at 18% 22%, color-mix(in oklab, var(--accent) 42%, transparent), transparent 70%),
-      radial-gradient(34% 40% at 82% 12%, color-mix(in oklab, var(--accent-2) 34%, transparent), transparent 70%),
-      radial-gradient(40% 38% at 52% 46%, color-mix(in oklab, var(--gold) 22%, transparent), transparent 72%);
+      radial-gradient(38% 44% at 18% 22%, color-mix(in oklab, var(--accent) 26%, transparent), transparent 70%),
+      radial-gradient(34% 40% at 82% 12%, color-mix(in oklab, var(--accent-2) 20%, transparent), transparent 70%),
+      radial-gradient(40% 38% at 52% 46%, color-mix(in oklab, var(--gold) 14%, transparent), transparent 72%);
     animation: drift 26s var(--out) infinite alternate;
   }}
   @keyframes drift {{
@@ -700,7 +709,8 @@ def render_html(articles: list) -> str:
   }}
   .menu-btn {{
     flex: none; width: 2.3rem; height: 2.3rem; display: grid; place-items: center;
-    border: 1px solid var(--line-2); background: var(--surface); color: var(--ink);
+    border: 1px solid var(--line-2); background: var(--glass-2); color: var(--ink);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     border-radius: 12px; cursor: pointer;
     transition: transform .18s var(--spring), border-color .18s, background .18s;
   }}
@@ -713,7 +723,7 @@ def render_html(articles: list) -> str:
   .menu-btn.open .ln3 {{ transform: translateY(-6px) rotate(-45deg); }}
   .brand {{
     display: flex; align-items: center; gap: .5rem;
-    font-size: 1.06rem; font-weight: 750; letter-spacing: -.028em;
+    font-family: var(--font-serif); font-size: 1.32rem; font-weight: 500; letter-spacing: -.01em;
   }}
   .brand .dot {{
     width: .62rem; height: .62rem; border-radius: 50%;
@@ -729,7 +739,8 @@ def render_html(articles: list) -> str:
   .fresh {{ font-size: .74rem; color: var(--sub); font-variant-numeric: tabular-nums; white-space: nowrap; }}
   .ghost {{
     display: inline-flex; align-items: center; gap: .34rem;
-    border: 1px solid var(--line-2); background: var(--surface); color: var(--sub);
+    border: 1px solid var(--line-2); background: var(--glass-2); color: var(--sub);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     padding: .32rem .62rem; border-radius: 999px;
     font: inherit; font-size: .74rem; font-weight: 650; cursor: pointer;
     transition: transform .18s var(--spring), color .18s, border-color .18s, background .18s;
@@ -750,7 +761,8 @@ def render_html(articles: list) -> str:
   /* ---- chips, shared by the drawer's two sections and the onboarding form ---- */
   .chipwrap {{ display: flex; flex-wrap: wrap; gap: .4rem; }}
   .chip {{
-    border: 1px solid var(--line-2); background: var(--surface); color: var(--sub);
+    border: 1px solid var(--line-2); background: var(--glass-2); color: var(--sub);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     padding: .32rem .68rem; border-radius: 999px;
     font: inherit; font-size: .755rem; font-weight: 650; white-space: nowrap; cursor: pointer;
     transition: transform .2s var(--spring), background .2s var(--out), color .2s, border-color .2s;
@@ -764,14 +776,10 @@ def render_html(articles: list) -> str:
   .chip:hover {{ color: var(--ink); border-color: var(--line-2); }}
   .chip:active {{ transform: scale(.94); }}
   .chip.on {{
-    color: #fff; border-color: transparent;
-    background: linear-gradient(135deg,
-      hsl(var(--hue, 248) 62% 54%), hsl(calc(var(--hue, 248) + 26) 66% 48%));
-    box-shadow: 0 2px 10px -4px hsl(var(--hue, 248) 62% 54% / .7);
+    color: var(--ink); border-color: var(--accent); background: var(--accent-2);
   }}
   .chip[data-f="__saved__"].on {{
-    background: linear-gradient(135deg, var(--gold), #d98324);
-    box-shadow: 0 2px 10px -4px color-mix(in oklab, var(--gold) 70%, transparent);
+    border-color: var(--gold); background: color-mix(in oklab, var(--gold) 16%, transparent);
   }}
 
   /* ---- collapsible left drawer (topics + sources moved out of the top bar) ---- */
@@ -782,7 +790,8 @@ def render_html(articles: list) -> str:
   .scrim.show {{ opacity: 1; pointer-events: auto; }}
   .drawer {{
     position: fixed; inset: 0 auto 0 0; z-index: 30; width: min(84vw, 320px);
-    background: var(--surface); border-right: 1px solid var(--line);
+    background: var(--glass); border-right: 1px solid var(--line);
+    backdrop-filter: blur(38px) saturate(1.7); -webkit-backdrop-filter: blur(38px) saturate(1.7);
     box-shadow: var(--shadow-xl);
     transform: translateX(-100%); transition: transform .32s var(--out);
     display: flex; flex-direction: column; overflow: hidden;
@@ -792,7 +801,7 @@ def render_html(articles: list) -> str:
     flex: none; display: flex; align-items: center; justify-content: space-between;
     padding: 1rem 1.1rem; border-bottom: 1px solid var(--line);
   }}
-  .drawer-head strong {{ font-size: .95rem; letter-spacing: -.01em; }}
+  .drawer-head strong {{ font-family: var(--font-serif); font-size: 1.35rem; font-weight: 500; letter-spacing: -.01em; }}
   .drawer-close {{
     width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: 10px;
     border: 1px solid transparent; background: none; color: var(--sub); cursor: pointer;
@@ -807,7 +816,8 @@ def render_html(articles: list) -> str:
     font: inherit; color: var(--ink); text-align: left;
   }}
   .section-head span.t {{
-    font-size: .7rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; color: var(--sub);
+    font-family: var(--font-mono); font-size: .68rem; font-weight: 500;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--sub);
   }}
   .section-head svg {{
     width: .85rem; height: .85rem; color: var(--sub);
@@ -831,7 +841,7 @@ def render_html(articles: list) -> str:
     font: inherit; font-size: .78rem; font-weight: 650; padding: .4rem 0; border-radius: 9px;
     transition: background .18s var(--out), color .18s;
   }}
-  .theme-opt.on {{ background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }}
+  .theme-opt.on {{ background: var(--glass); color: var(--ink); box-shadow: var(--shadow-sm); }}
 
   /* Card-size slider. Scales .stage height and .card width together (one
      knob, not two) so the aspect ratio can't be broken into a stretched
@@ -841,12 +851,15 @@ def render_html(articles: list) -> str:
     display: flex; align-items: center; gap: .6rem;
     max-width: 260px; margin: .9rem auto 0;
   }}
-  .size-row .size-lbl {{ font-size: .74rem; font-weight: 650; color: var(--sub); }}
+  .size-row .size-lbl {{
+    font-family: var(--font-mono); font-size: .68rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--sub);
+  }}
   .size-row input[type="range"] {{
     flex: 1; accent-color: var(--accent); height: 1.2rem;
   }}
   .size-row .size-val {{
-    font-size: .74rem; font-weight: 650; color: var(--sub);
+    font-family: var(--font-mono); font-size: .74rem; color: var(--sub);
     font-variant-numeric: tabular-nums; width: 2.8rem; text-align: right;
   }}
   .drawer-footnote {{
@@ -869,14 +882,20 @@ def render_html(articles: list) -> str:
      read as "the hamburger doesn't do anything." */
   .onb-scrim.show {{ opacity: 1; pointer-events: auto; }}
   .onb {{
+    position: relative;
     width: 100%; max-width: 480px; max-height: 86vh; overflow-y: auto;
-    background: var(--surface); border: 1px solid var(--line);
+    background: var(--glass); border: 1px solid var(--line);
+    backdrop-filter: blur(40px) saturate(1.7); -webkit-backdrop-filter: blur(40px) saturate(1.7);
     border-radius: 26px 26px 0 0; box-shadow: var(--shadow-xl);
     padding: 1.6rem 1.4rem calc(1.4rem + env(safe-area-inset-bottom, 0px));
     transform: translateY(24px); transition: transform .32s var(--spring);
   }}
+  .onb::before {{
+    content: ""; display: block; width: 40px; height: 4px; border-radius: 99px;
+    background: var(--line-2); margin: 0 auto 1.4rem;
+  }}
   .onb-scrim.show .onb {{ transform: translateY(0); }}
-  .onb h2 {{ margin: 0 0 .3rem; font-size: 1.25rem; letter-spacing: -.02em; }}
+  .onb h2 {{ margin: 0 0 .3rem; font-family: var(--font-serif); font-weight: 500; font-size: 1.5rem; letter-spacing: -.02em; }}
   .onb p {{ margin: 0 0 1.1rem; color: var(--sub); font-size: .86rem; }}
   .onb .chipwrap {{ margin-bottom: 1.3rem; }}
   .onb .chip {{ font-size: .82rem; padding: .42rem .8rem; }}
@@ -919,14 +938,18 @@ def render_html(articles: list) -> str:
 
   .card {{
     position: absolute; inset: 0; margin: auto;
-    width: calc(min(94%, 400px) * var(--card-scale)); height: 100%;
+    /* min(...,100%) caps growth at the column's own width -- otherwise a
+       large --card-scale multiplies past the container and the card
+       overlaps whatever sits beside .stage (the Up Next queue on desktop). */
+    width: min(calc(min(94%, 400px) * var(--card-scale)), 100%); height: 100%;
     display: flex; flex-direction: column; overflow: hidden;
-    background: var(--surface); border: 1px solid var(--line);
+    background: var(--glass); border: 1px solid var(--line);
+    backdrop-filter: blur(26px) saturate(1.6); -webkit-backdrop-filter: blur(26px) saturate(1.6);
     border-radius: var(--radius);
     user-select: none;   /* dragging the card must not highlight its text */
-    /* A tighter shadow than --shadow-xl -- that one's 64px-blur layer bled far
-       enough below the card to visually run into the prev/next buttons. */
-    box-shadow: 0 6px 14px -8px rgba(0,0,0,.35), 0 18px 34px -20px rgba(0,0,0,.4);
+    /* --shadow-md, not -xl -- the wider shadow's blur/spread bled far enough
+       below the card to visually run into the prev/next buttons. */
+    box-shadow: var(--shadow-md);
     transform-origin: 50% 100%;
     will-change: transform, opacity;
     animation: cardIn .5s var(--out) both;
@@ -952,7 +975,7 @@ def render_html(articles: list) -> str:
   /* Shimmer sits under the image and is simply covered once it paints. */
   .media::before {{
     content: ""; position: absolute; inset: 0;
-    background: linear-gradient(100deg, var(--bg-2) 20%, var(--surface-2) 40%, var(--bg-2) 60%);
+    background: linear-gradient(100deg, var(--bg-2) 20%, var(--glass-2) 40%, var(--bg-2) 60%);
     background-size: 220% 100%;
     animation: shimmer 1.5s linear infinite;
   }}
@@ -960,20 +983,16 @@ def render_html(articles: list) -> str:
   @keyframes shimmer {{ to {{ background-position: -220% 0; }} }}
   .media .scrim {{
     position: absolute; inset: auto 0 0 0; height: 55%;
-    background: linear-gradient(to top, var(--surface), transparent);
+    background: linear-gradient(to top, var(--bg-2), transparent);
     pointer-events: none;
   }}
 
   .body {{ flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 1.05rem 1.15rem 1.1rem; }}
   .metarow {{ display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .55rem; }}
   .src {{
-    display: inline-flex; align-items: center; gap: .38rem;
-    font-size: .735rem; font-weight: 700; letter-spacing: -.005em;
-    color: hsl(var(--hue) 72% 74%);
+    display: inline-flex; align-items: center; gap: .5rem;
+    font-size: .82rem; font-weight: 500; letter-spacing: -.005em; color: var(--ink);
   }}
-  @media (prefers-color-scheme: light) {{ .src {{ color: hsl(var(--hue) 52% 40%); }} }}
-  :root[data-theme="light"] .src {{ color: hsl(var(--hue) 52% 40%); }}
-  :root[data-theme="dark"] .src {{ color: hsl(var(--hue) 72% 74%); }}
   .ava {{
     width: 1.4rem; height: 1.4rem; border-radius: 50%; flex: none;
     display: grid; place-items: center;
@@ -982,34 +1001,26 @@ def render_html(articles: list) -> str:
     background: linear-gradient(135deg, hsl(var(--hue) 62% 56%), hsl(calc(var(--hue) + 30) 62% 46%));
   }}
   .pill {{
-    font-size: .66rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+    font-family: var(--font-mono);
+    font-size: .64rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase;
     color: var(--sub); background: var(--bg-2);
     border: 1px solid var(--line); padding: .16rem .46rem; border-radius: 999px;
   }}
-  /* Political-leaning pill + a faint background wash on the card itself.
-     Self-curated (source_bias.yaml), not from an API -- see the drawer
-     footer disclaimer. A source with no entry gets neither: no pill, no
-     tint, so "unrated" never gets mistaken for a "Center" judgment. */
-  .pill.lean {{ border-color: transparent; }}
-  .card[data-lean="Left"] .pill.lean, .card[data-lean="Lean Left"] .pill.lean {{
-    color: #6ea8ff; background: rgba(91,140,255,.14);
-  }}
-  .card[data-lean="Right"] .pill.lean, .card[data-lean="Lean Right"] .pill.lean {{
-    color: #ff9c7a; background: rgba(255,120,90,.14);
-  }}
-  .card[data-lean="Center"] .pill.lean {{ color: var(--sub); background: rgba(160,160,170,.14); }}
-  .card[data-lean="Left"], .card[data-lean="Lean Left"] {{
-    background: linear-gradient(165deg, rgba(91,140,255,.09), transparent 55%) var(--surface);
-  }}
-  .card[data-lean="Right"], .card[data-lean="Lean Right"] {{
-    background: linear-gradient(165deg, rgba(255,120,90,.09), transparent 55%) var(--surface);
-  }}
-  .card[data-lean="Center"] {{
-    background: linear-gradient(165deg, rgba(160,160,170,.07), transparent 55%) var(--surface);
+  /* Political-leaning pill. Self-curated (source_bias.yaml), not from an
+     API -- see the drawer footer disclaimer. A source with no entry gets no
+     pill at all, so "unrated" never gets mistaken for a "Center" judgment.
+     One muted dashed style for every value on purpose -- no per-direction
+     color-coding (no red/blue), since that reads as a stronger claim than
+     "here's a hand-curated, mostly-unverified label" should. No card
+     background tint either, for the same reason: this is a footnote, not
+     a badge of honor or a warning label. */
+  .pill.lean {{
+    background: none; border: 1px dashed var(--line-2); color: var(--sub);
+    text-transform: none; letter-spacing: .02em; font-weight: 400;
   }}
   .card h2 {{
-    margin: 0 0 .4rem; font-size: 1.19rem; line-height: 1.28;
-    font-weight: 760; letter-spacing: -.022em;
+    margin: 0 0 .4rem; font-family: var(--font-serif); font-size: 1.32rem; line-height: 1.24;
+    font-weight: 500; letter-spacing: -.015em;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }}
   .also {{ font-size: .72rem; color: var(--sub); margin-bottom: .45rem; }}
@@ -1022,20 +1033,22 @@ def render_html(articles: list) -> str:
     display: flex; align-items: center; justify-content: space-between; gap: .6rem;
     margin-top: .85rem; padding-top: .7rem; border-top: 1px solid var(--line);
   }}
-  .foot time {{ font-size: .73rem; color: var(--sub); font-variant-numeric: tabular-nums; }}
+  .foot time {{ font-family: var(--font-mono); font-size: .7rem; color: var(--sub); font-variant-numeric: tabular-nums; }}
   .read {{
-    display: inline-flex; align-items: center; gap: .3rem;
-    font-size: .8rem; font-weight: 700; color: var(--accent); text-decoration: none;
-    transition: gap .2s var(--spring);
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .4rem .7rem; border-radius: 999px; border: 1px solid var(--line-2);
+    background: var(--glass-2);
+    font-size: .78rem; font-weight: 500; color: var(--ink); text-decoration: none;
+    transition: border-color .2s, background .2s;
   }}
-  .read svg {{ width: .85rem; height: .85rem; }}
-  .read:hover {{ gap: .5rem; text-decoration: underline; }}
+  .read svg {{ width: .8rem; height: .8rem; }}
+  .read:hover {{ border-color: var(--accent); background: var(--accent-2); text-decoration: none; color: var(--ink); }}
 
   .tools {{ position: absolute; top: .7rem; right: .7rem; display: flex; gap: .35rem; z-index: 3; }}
   .tool {{
     width: 2.1rem; height: 2.1rem; border-radius: 50%; display: grid; place-items: center;
     border: 1px solid transparent; cursor: pointer; color: var(--ink);
-    background: color-mix(in oklab, var(--surface) 78%, transparent);
+    background: var(--glass-2);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     box-shadow: var(--shadow-sm);
     transition: transform .2s var(--spring), color .2s, background .2s;
@@ -1060,11 +1073,17 @@ def render_html(articles: list) -> str:
   .end h2 {{ -webkit-line-clamp: unset; margin-bottom: .3rem; }}
   .end p {{ color: var(--sub); font-size: .88rem; margin: 0 0 1rem; }}
 
-  .ctrls {{ display: flex; align-items: center; justify-content: center; gap: 1.3rem; margin-top: 1.8rem; position: relative; z-index: 2; }}
+  .ctrls {{
+    display: flex; align-items: center; justify-content: center; gap: .5rem;
+    margin: 1.8rem auto 0; position: relative; z-index: 2; width: fit-content;
+    padding: .45rem; border-radius: 999px; border: 1px solid var(--line-2);
+    background: var(--glass); backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6); box-shadow: var(--shadow-md);
+  }}
   .rnd {{
-    width: 3.15rem; height: 3.15rem; border-radius: 50%; display: grid; place-items: center;
-    border: 1px solid var(--line-2); background: var(--surface); color: var(--ink);
-    box-shadow: var(--shadow-md); cursor: pointer;
+    width: 3rem; height: 3rem; border-radius: 50%; display: grid; place-items: center;
+    border: 1px solid var(--line-2); background: var(--glass-2); color: var(--ink);
+    cursor: pointer;
     transition: transform .22s var(--spring), border-color .2s, color .2s;
   }}
   .rnd svg {{ width: 1.15rem; height: 1.15rem; }}
@@ -1085,7 +1104,7 @@ def render_html(articles: list) -> str:
     animation: chipIn .4s var(--out) both; animation-delay: calc(var(--i, 0) * 40ms);
     transition: background .16s, border-color .16s, transform .16s var(--out);
   }}
-  .qi:hover {{ background: var(--surface); border-color: var(--line); transform: translateX(2px); }}
+  .qi:hover {{ background: var(--glass-2); border-color: var(--line); transform: translateX(2px); }}
   .qi .bar {{ flex: none; width: 3px; align-self: stretch; border-radius: 3px; background: hsl(var(--hue) 62% 56%); }}
   .qi .t {{ font-size: .81rem; font-weight: 640; line-height: 1.34; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }}
   .qi .s {{ font-size: .7rem; color: var(--sub); margin-top: .12rem; }}
@@ -1096,10 +1115,10 @@ def render_html(articles: list) -> str:
     bottom: calc(1.4rem + env(safe-area-inset-bottom));
     transform: translate(-50%, 24px) scale(.96); opacity: 0; pointer-events: none;
     display: flex; align-items: center; gap: .45rem;
-    padding: .6rem 1rem; border-radius: 999px;
-    background: color-mix(in oklab, var(--ink) 92%, transparent); color: var(--bg);
-    font-size: .82rem; font-weight: 600; box-shadow: var(--shadow-xl);
-    backdrop-filter: blur(10px);
+    padding: .6rem 1rem; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--glass); color: var(--ink);
+    font-size: .82rem; font-weight: 500; box-shadow: var(--shadow-xl);
+    backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6);
     transition: opacity .28s var(--out), transform .38s var(--spring);
   }}
   .toast.show {{ opacity: 1; transform: translate(-50%, 0) scale(1); }}
@@ -1116,6 +1135,28 @@ def render_html(articles: list) -> str:
     .card {{ width: 100%; border-radius: 0; border-width: 1px 0; }}
   }}
 
+  /* Below the desktop breakpoint, stop clamping .stage to a fixed height
+     and let it fill whatever's actually left of the viewport -- the old
+     `clamp(380px, 54vh, 500px)` capped the card at roughly half the
+     screen on tall phones, leaving a dead black gap below the controls.
+     Scoped to this media query only (not the base `body` rule above) so
+     desktop's landscape layout, which relies on content sizing itself,
+     is untouched. The SIZE slider is hidden here too -- once the card
+     already fills the screen there's nothing left to scale it into. */
+  @media (max-width: 899px) {{
+    body {{ height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }}
+    header {{ flex: none; }}
+    /* margin: 0 auto in the base rule (desktop centering) forces auto-margin
+       shrink-to-fit under flex, overriding stretch -- kill it here so the
+       column actually fills the full width instead of floating narrow and
+       centered. */
+    .layout {{ flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: stretch; margin: 0; max-width: none; }}
+    .layout > div:first-child {{ flex: 1; min-height: 0; display: flex; flex-direction: column; }}
+    .stage {{ flex: 1; min-height: 0; height: auto; }}
+    .ctrls, .count {{ flex: none; }}
+    .size-row {{ display: none; }}
+  }}
+
   /* Landscape phones: the mobile portrait card forces a >=380px-tall stage
      (see .stage above), which overflows a short landscape viewport and
      shoves/overlaps the prev/next buttons below it. Below the 900px
@@ -1126,7 +1167,7 @@ def render_html(articles: list) -> str:
        Portrait mobile keeps the tall layout defined above untouched --
        these rules only apply from this breakpoint up. */
     .stage {{ height: calc(clamp(300px, 46vh, 380px) * var(--card-scale)); }}
-    .card {{ width: calc(min(94%, 780px) * var(--card-scale)); }}
+    .card {{ width: min(calc(min(94%, 780px) * var(--card-scale)), 100%); }}
     .card:not(.end) {{ flex-direction: row; }}   /* .end stays a centered vertical stack */
     .media {{ flex: 0 0 40%; height: 100%; }}
     .media .scrim {{ display: none; }}   /* nothing overlays the image in this layout */
@@ -1565,7 +1606,6 @@ def render_html(articles: list) -> str:
       el.style.setProperty('--i', stackI);
       el.style.zIndex = String(10 - stackI);
       el.dataset.id = a.id;
-      if (a.leaning && a.leaning !== 'Not rated') el.dataset.lean = a.leaning;
       el.innerHTML = cardMarkup(a);
       if (stackI > 0) {{
         el.style.transform = 'translateY(' + (stackI * 11) + 'px) scale(' + (1 - stackI * 0.045) + ')';
@@ -2253,6 +2293,10 @@ def render_html(articles: list) -> str:
     }});
 
     /* ---------- boot ---------- */
+
+    if ('serviceWorker' in navigator) {{
+      navigator.serviceWorker.register('sw.js').catch(function () {{}});
+    }}
 
     renderTopics();
     renderSources();
