@@ -866,6 +866,10 @@ def render_html(articles: list) -> str:
     font-size: .7rem; color: var(--sub); opacity: .75; line-height: 1.4;
     padding: .9rem 1.1rem 0; margin: .3rem 0 0; border-top: 1px solid var(--line);
   }}
+  .drawer-fresh {{
+    font-family: var(--font-mono); font-size: .68rem; color: var(--sub); opacity: .6;
+    margin: .7rem 0 0; padding: 0 1.1rem;
+  }}
 
   /* ---- first-run "what do you care about" onboarding form ---- */
   .onb-scrim {{
@@ -918,6 +922,20 @@ def render_html(articles: list) -> str:
     .onb-scrim {{ align-items: center; }}
     .onb {{ border-radius: 26px; }}
   }}
+
+  /* ---- "add to home screen" nudge (iOS Safari only -- see boot JS) ---- */
+  .onb.a2hs {{ position: relative; }}
+  .a2hs-close {{
+    position: absolute; top: 1rem; right: 1rem; width: 2rem; height: 2rem;
+    border: none; background: var(--glass-2); border-radius: 50%; color: var(--sub);
+    display: grid; place-items: center; cursor: pointer;
+  }}
+  .a2hs-close svg {{ width: .85rem; height: .85rem; }}
+  .a2hs-close:hover {{ color: var(--ink); }}
+  .a2hs-steps {{
+    margin: 0; padding-left: 1.2rem; color: var(--sub); font-size: .86rem; line-height: 1.6;
+  }}
+  .a2hs-steps b {{ color: var(--ink); font-weight: 600; }}
 
   .layout {{
     position: relative; z-index: 1;
@@ -1151,10 +1169,30 @@ def render_html(articles: list) -> str:
        column actually fills the full width instead of floating narrow and
        centered. */
     .layout {{ flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: stretch; margin: 0; max-width: none; }}
-    .layout > div:first-child {{ flex: 1; min-height: 0; display: flex; flex-direction: column; }}
+    .layout > div:first-child {{ flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }}
     .stage {{ flex: 1; min-height: 0; height: auto; }}
-    .ctrls, .count {{ flex: none; }}
+    .count {{ flex: none; }}
     .size-row {{ display: none; }}
+    /* The prev/next pill used to sit below the card, eating a fixed strip
+       of the now-precious full-bleed height. Forward nav is already the
+       drag gesture (either direction advances -- see attachDrag), so only
+       "back" earns a dedicated control: float it over the top-left corner
+       of the card, sized and glassed to match the save/share .tool
+       buttons on the opposite corner, and drop the pill chrome and the
+       now-redundant next button entirely. Desktop keeps the original
+       below-stage prev/next pair untouched (plenty of room there, and
+       mouse users benefit from an explicit forward button too). */
+    .ctrls {{
+      position: absolute; top: .7rem; left: .7rem; z-index: 5;
+      margin: 0; padding: 0; background: none; border: none; box-shadow: none; gap: 0;
+    }}
+    #next {{ display: none; }}
+    .ctrls .rnd {{
+      width: 2.1rem; height: 2.1rem; background: var(--glass-2);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      box-shadow: var(--shadow-sm); border-color: transparent;
+    }}
+    .ctrls .rnd svg {{ width: .95rem; height: .95rem; }}
   }}
 
   /* Landscape phones: the mobile portrait card forces a >=380px-tall stage
@@ -1212,8 +1250,7 @@ def render_html(articles: list) -> str:
       </button>
       <div class="brand"><span class="dot" aria-hidden="true"></span> newsdigest</div>
       <div class="head-right">
-        <span class="fresh" id="fresh"></span>
-        <button class="ghost" id="refresh" title="Check for a newer snapshot">
+        <button class="ghost" id="refresh" title="Show me something I haven't seen">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>
           </svg>
@@ -1271,6 +1308,7 @@ def render_html(articles: list) -> str:
       </div>
       <p class="drawer-footnote">Leaning shown on cards is from public ratings where available, hand-curated
         (not an API) -- most sources aren't independently rated.</p>
+      <p class="drawer-fresh" id="fresh"></p>
     </div>
   </aside>
 
@@ -1309,6 +1347,21 @@ def render_html(articles: list) -> str:
         <button class="onb-skip" id="onb-skip">Skip, show everything</button>
         <button class="onb-go" id="onb-go">Save preferences</button>
       </div>
+    </div>
+  </div>
+
+  <div class="onb-scrim" id="a2hs-scrim">
+    <div class="onb a2hs" role="dialog" aria-modal="true" aria-labelledby="a2hs-title">
+      <button class="a2hs-close" id="a2hs-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <h2 id="a2hs-title">Add newsdigest to your Home Screen</h2>
+      <p>Full-screen, no browser bar, one tap to open.</p>
+      <ol class="a2hs-steps">
+        <li>Tap the <b>Share</b> button in Safari's toolbar</li>
+        <li>Scroll down and tap <b>Add to Home Screen</b></li>
+        <li>Tap <b>Add</b> in the top-right corner</li>
+      </ol>
     </div>
   </div>
 
@@ -2193,15 +2246,31 @@ def render_html(articles: list) -> str:
     paintFresh();
     setInterval(paintFresh, 60000);
 
-    // This does NOT kick off a new Actions run -- a static page has nowhere
-    // safe to keep a token that could. It re-fetches whatever the hourly
-    // cron last published, past any stale browser/CDN copy.
+    // Jumps to a random not-yet-seen article in the current view rather
+    // than reloading -- reloading did nothing *visible* most of the time
+    // (same build, same articles, still inside the cooldown), which read
+    // as "the button doesn't work". Falls back to an actual re-fetch only
+    // once there's nothing left unseen to shuffle to; that fetch does NOT
+    // kick off a new Actions run -- a static page has nowhere safe to keep
+    // a token that could. It just re-fetches whatever the last cron run
+    // published, past any stale browser/CDN copy.
     document.getElementById('refresh').addEventListener('click', function () {{
       var btn = this;
       btn.classList.remove('spin'); void btn.offsetWidth; btn.classList.add('spin');
+
+      var list = filtered();
+      var unseen = [];
+      list.forEach(function (a, i) {{ if (i !== index && !seen.has(a.id)) unseen.push(i); }});
+      if (unseen.length) {{
+        index = unseen[Math.floor(Math.random() * unseen.length)];
+        render();
+        toast('Here\\'s something new');
+        return;
+      }}
+
       var m = minsOld();
       if (!isNaN(m) && m < COOLDOWN_MIN) {{
-        toast('Already fresh — built ' + Math.floor(m) + 'm ago');
+        toast('You\\'ve seen everything in this view');
         return;
       }}
       toast('Fetching the latest…');
@@ -2292,6 +2361,28 @@ def render_html(articles: list) -> str:
       if (e.target === onbScrim) closeOnboarding();   // click on the backdrop itself
     }});
 
+    /* ---------- "add to home screen" nudge (iOS Safari only) ---------- */
+
+    // iOS Safari has no install-banner API (no beforeinstallprompt) --
+    // Chrome/Android and desktop get their own native install affordance,
+    // so this only needs to cover the one platform with no other path to
+    // "add to home screen." navigator.standalone is Safari-only and true
+    // once already installed; the display-mode media query is the
+    // standards-track equivalent other engines use for the same check.
+    var A2HS_KEY = 'newsdigest:a2hs-seen';
+    var isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) && !window.MSStream;
+    var isStandalone = window.navigator.standalone === true
+      || window.matchMedia('(display-mode: standalone)').matches;
+    var a2hsScrim = document.getElementById('a2hs-scrim');
+    function closeA2HS() {{
+      a2hsScrim.classList.remove('show');
+      try {{ localStorage.setItem(A2HS_KEY, '1'); }} catch (e) {{}}
+    }}
+    document.getElementById('a2hs-close').addEventListener('click', closeA2HS);
+    a2hsScrim.addEventListener('click', function (e) {{
+      if (e.target === a2hsScrim) closeA2HS();
+    }});
+
     /* ---------- boot ---------- */
 
     if ('serviceWorker' in navigator) {{
@@ -2321,6 +2412,14 @@ def render_html(articles: list) -> str:
     if (!alreadyOnboarded && topics.length) {{
       // Let the deck paint first so the form doesn't block first render.
       setTimeout(function () {{ onbScrim.classList.add('show'); }}, 260);
+    }} else {{
+      // Never stack this on top of the onboarding form -- a first-time
+      // visitor gets that instead, and sees this nudge on a later visit.
+      var alreadySeenA2HS = false;
+      try {{ alreadySeenA2HS = !!localStorage.getItem(A2HS_KEY); }} catch (e) {{ alreadySeenA2HS = true; }}
+      if (isIOS && !isStandalone && !alreadySeenA2HS) {{
+        setTimeout(function () {{ a2hsScrim.classList.add('show'); }}, 260);
+      }}
     }}
   }})();
   </script>
