@@ -663,7 +663,7 @@ def render_html(articles: list) -> str:
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   /* Dark is the default look regardless of system preference -- only an
      explicit `prefers-color-scheme: light` gets the light palette below.
@@ -749,6 +749,39 @@ def render_html(articles: list) -> str:
     --shadow-xl: 0 24px 60px -18px oklch(0.4 0.03 280 / 0.28);
     --scrim: oklch(0.1 0.02 280 / 0.4);
   }}
+
+  /* ---- paper skin: a second, fixed warm/light palette + type pairing,
+     selected independently of the dark/light/auto theme above (see
+     #skin-switch JS). Placed after :root[data-theme="light"] so it wins
+     by source order if a stale data-theme value is ever present at the
+     same time as data-skin="paper" -- shouldn't happen in normal use
+     (the theme-switch hides itself under paper) but cheap to guarantee. */
+  html[data-skin="paper"] {{
+    color-scheme: light;
+    --bg: #FBF7F0; --bg-2: #F6F1E7;
+    --glass: #FBF7F0; --glass-2: #F1E9D8;
+    --ink: #15130F; --sub: #6F6A61;
+    --line: #EDE5D6; --line-2: #E0D8C9;
+    --accent: #FF7A00; --accent-2: rgba(255, 122, 0, .14); --gold: #FFB43C;
+    --shadow-sm: 0 6px 16px -12px rgba(21, 19, 15, .18);
+    --shadow-md: 0 14px 32px -18px rgba(21, 19, 15, .22);
+    --shadow-xl: 0 26px 60px -30px rgba(21, 19, 15, .45);
+    --scrim: rgba(21, 19, 15, .4);
+    --font-serif: "Instrument Serif", Georgia, serif;
+    --font-sans: "Space Grotesk", system-ui, sans-serif;
+    --font-mono: "Space Grotesk", ui-monospace, monospace;
+  }}
+  /* Hue-based per-source accents assume a dark/translucent surface --
+     retuned lower-saturation/higher-lightness so they read as ink-on-paper
+     instead of washed out against #FBF7F0. */
+  html[data-skin="paper"] .ava {{
+    background: linear-gradient(135deg, hsl(var(--hue) 55% 42%), hsl(calc(var(--hue) + 30) 55% 34%));
+  }}
+  html[data-skin="paper"] .media.noimg {{
+    background: linear-gradient(150deg, hsl(var(--hue) 45% 88%), hsl(calc(var(--hue) + 24) 40% 80%));
+  }}
+  html[data-skin="paper"] .noimg-mark {{ color: hsl(var(--hue) 45% 30% / .6); }}
+  html[data-skin="paper"] .qi .bar {{ background: hsl(var(--hue) 50% 42%); }}
 
   * {{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }}
   /* Not height:100% -- that forced the page to exactly one viewport tall
@@ -931,6 +964,9 @@ def render_html(articles: list) -> str:
     transition: background .18s var(--out), color .18s;
   }}
   .theme-opt.on {{ background: var(--glass); color: var(--ink); box-shadow: var(--shadow-sm); }}
+  /* Paper is one fixed light palette, not itself themeable dark/light/auto
+     -- hide the unrelated switch rather than leave 3 dead/confusing options. */
+  html[data-skin="paper"] #theme-switch {{ display: none; }}
 
   /* Card-size slider. Scales .stage height and .card width together (one
      knob, not two) so the aspect ratio can't be broken into a stretched
@@ -1349,6 +1385,99 @@ def render_html(articles: list) -> str:
     }}
     .mesh {{ animation: none; }}
   }}
+
+  /* ================= paper skin: structural overrides =================
+     Everything above this point is color/font tokens the palette swap
+     already handles for free (every rule in this file reads var(--*),
+     confirmed by an audit pass). What follows is the genuinely
+     structural part: a permanent sidebar instead of an overlay drawer,
+     an opaque card instead of a blurred glass one, and the two small
+     markup additions (.kicker, #ctrl-save) that don't correspond to any
+     existing glass-skin element. Scoped to desktop only (min-width:900px)
+     except the card/kicker recolor, which also needs a mobile pass since
+     mobile paper keeps a dark card on a light page -- see the last block. */
+
+  .kicker {{ display: none; }}   /* inert for glass; shown under paper below */
+  #ctrl-save {{ display: none; }}   /* inert for glass; shown under paper below */
+  .today-progress, .brief-card {{ display: none; }}   /* paper-only, real data, see JS */
+
+  html[data-skin="paper"] .card {{
+    background: var(--glass); backdrop-filter: none; -webkit-backdrop-filter: none;
+  }}
+  html[data-skin="paper"] .kicker {{
+    display: block; position: absolute; top: .8rem; left: .9rem; z-index: 2;
+    background: var(--accent); color: var(--ink);
+    font-family: var(--font-sans); font-size: .68rem; font-weight: 700;
+    letter-spacing: .1em; text-transform: uppercase;
+    padding: .3rem .6rem; border-radius: 5px; pointer-events: none;
+  }}
+  html[data-skin="paper"] .metarow .pill:not(.lean) {{ display: none; }}   /* .kicker already shows it */
+
+  @media (min-width: 900px) {{
+    html[data-skin="paper"] .layout {{ grid-template-columns: 236px minmax(0, 1fr) 320px; gap: 0; }}
+    html[data-skin="paper"] .menu-btn {{ display: none; }}   /* nothing to toggle -- sidebar is permanent */
+    html[data-skin="paper"] .scrim {{ display: none; }}      /* no dimmer needed for a real column */
+    html[data-skin="paper"] .drawer {{
+      position: static; inset: auto; width: auto; height: auto;
+      transform: none; transition: none;
+      background: var(--bg-2); border-right: 1px solid var(--line);
+      box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+      grid-column: 1; grid-row: 1;
+    }}
+    html[data-skin="paper"] .drawer.open {{ transform: none; }}   /* neutralize the glass slide-in */
+    html[data-skin="paper"] .queue {{ grid-column: 3; }}
+    html[data-skin="paper"] .today-progress {{ display: block; padding: 0 1.1rem; margin-top: .9rem; }}
+    html[data-skin="paper"] .brief-card {{
+      display: flex; flex-direction: column; gap: .4rem; margin-top: auto;
+      padding: 1rem; border-radius: 14px; background: var(--ink); color: var(--bg);
+    }}
+    html[data-skin="paper"] .brief-kicker {{
+      font-family: var(--font-sans); font-size: .68rem; font-weight: 700;
+      letter-spacing: .12em; text-transform: uppercase; color: var(--gold);
+    }}
+    html[data-skin="paper"] .brief-headline {{ font-family: var(--font-serif); font-size: 1.05rem; line-height: 1.3; }}
+    html[data-skin="paper"] .brief-sub {{ font-size: .78rem; color: var(--sub); }}
+    html[data-skin="paper"] .today-progress .tp-label {{
+      font-family: var(--font-sans); font-size: .68rem; font-weight: 700;
+      letter-spacing: .12em; text-transform: uppercase; color: var(--sub);
+    }}
+    html[data-skin="paper"] .today-progress .tp-count {{
+      font-family: var(--font-serif); font-size: 1.6rem; line-height: 1; margin-top: .3rem;
+    }}
+    html[data-skin="paper"] .today-progress .tp-of {{ font-family: var(--font-sans); font-size: .72rem; color: var(--sub); }}
+    html[data-skin="paper"] .today-progress .tp-bar {{
+      height: 4px; background: var(--line-2); border-radius: 99px; overflow: hidden; margin-top: .5rem;
+    }}
+    html[data-skin="paper"] .today-progress .tp-fill {{ height: 100%; background: var(--accent); border-radius: 99px; }}
+
+    /* Skip/Save/Read: relabel the existing prev/next buttons via CSS
+       rather than duplicating them, and show the one genuinely new
+       button (#ctrl-save, wired in JS to the same toggleSave() the
+       in-card save icon uses). */
+    html[data-skin="paper"] #ctrl-save {{ display: grid; }}
+    html[data-skin="paper"] #prev svg, html[data-skin="paper"] #next svg, html[data-skin="paper"] #ctrl-save svg {{ display: none; }}
+    html[data-skin="paper"] #prev, html[data-skin="paper"] #next, html[data-skin="paper"] #ctrl-save {{
+      width: auto; border-radius: 11px; padding: 0 1.1rem;
+    }}
+    html[data-skin="paper"] #prev::after {{ content: "Skip"; font-family: var(--font-sans); font-size: .82rem; }}
+    html[data-skin="paper"] #next::after {{ content: "Read"; font-family: var(--font-sans); font-size: .82rem; }}
+    html[data-skin="paper"] #ctrl-save::after {{ content: "Save"; font-family: var(--font-sans); font-size: .82rem; font-weight: 600; }}
+    html[data-skin="paper"] #ctrl-save.on::after {{ content: "Saved"; }}
+    html[data-skin="paper"] #ctrl-save.on {{ background: var(--ink); color: var(--bg); border-color: var(--ink); }}
+  }}
+
+  /* Mobile paper: the page chrome (header, overlay drawer) stays on the
+     warm/light palette above, but the card itself keeps the same dark
+     tone as the glass skin's cards -- re-declaring --ink/--sub/--line on
+     .card lets every descendant rule that already reads var(--ink) etc.
+     (headline, snippet, foot, pills) inherit the dark-on-card values
+     without touching a single one of those rules individually. */
+  @media (max-width: 899px) {{
+    html[data-skin="paper"] .card {{
+      background: #17140F; border-color: #2A241B;
+      --ink: #FBF7F0; --sub: #948C7E; --line: #2A241B; --line-2: #2F2921;
+    }}
+  }}
 </style>
 </head>
 <body data-generated="{now.isoformat()}">
@@ -1377,62 +1506,74 @@ def render_html(articles: list) -> str:
   </header>
 
   <div class="scrim" id="scrim"></div>
-  <aside class="drawer" id="drawer" aria-label="Filters">
-    <div class="drawer-head">
-      <strong>Filters</strong>
-      <button class="drawer-close" id="drawer-close" aria-label="Close filters">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
-    </div>
-    <div class="drawer-body">
-      <div class="section-head" style="cursor:default">
-        <span class="t">Appearance</span>
-      </div>
-      <div class="theme-switch" id="theme-switch" role="group" aria-label="Theme">
-        <button class="theme-opt" data-theme="auto">Auto</button>
-        <button class="theme-opt" data-theme="light">Light</button>
-        <button class="theme-opt" data-theme="dark">Dark</button>
-      </div>
-      <div class="section" id="section-topics">
-        <button class="section-head" data-toggle="section-topics">
-          <span class="t">Interests</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="section-panel"><div>
-          <p class="section-hint">Pick as many as you like -- leave empty to see everything.</p>
-          <nav class="chipwrap" id="topics" aria-label="Filter by topic"></nav>
-        </div></div>
-      </div>
-      <div class="section" id="section-sources">
-        <button class="section-head" data-toggle="section-sources">
-          <span class="t">Sources</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="section-panel"><div>
-          <nav class="chipwrap" id="sources" aria-label="Filter by source"></nav>
-        </div></div>
-      </div>
-      <div class="section" id="section-regions">
-        <button class="section-head" data-toggle="section-regions">
-          <span class="t">World</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="section-panel"><div>
-          <nav class="chipwrap" id="regions" aria-label="Filter by region"></nav>
-        </div></div>
-      </div>
-      <p class="drawer-footnote">Leaning shown on cards is from public ratings where available, hand-curated
-        (not an API) -- most sources aren't independently rated.</p>
-      <p class="drawer-fresh" id="fresh"></p>
-    </div>
-  </aside>
 
   <div class="layout">
+    <aside class="drawer" id="drawer" aria-label="Filters">
+      <div class="drawer-head">
+        <strong>Filters</strong>
+        <button class="drawer-close" id="drawer-close" aria-label="Close filters">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="drawer-body">
+        <div class="section-head" style="cursor:default">
+          <span class="t">Appearance</span>
+        </div>
+        <div class="theme-switch" id="theme-switch" role="group" aria-label="Theme">
+          <button class="theme-opt" data-theme="auto">Auto</button>
+          <button class="theme-opt" data-theme="light">Light</button>
+          <button class="theme-opt" data-theme="dark">Dark</button>
+        </div>
+        <div class="theme-switch" id="skin-switch" role="group" aria-label="Skin">
+          <button class="theme-opt" data-skin="glass">Glass</button>
+          <button class="theme-opt" data-skin="paper">Paper</button>
+        </div>
+        <div class="section" id="section-topics">
+          <button class="section-head" data-toggle="section-topics">
+            <span class="t">Interests</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="section-panel"><div>
+            <p class="section-hint">Pick as many as you like -- leave empty to see everything.</p>
+            <nav class="chipwrap" id="topics" aria-label="Filter by topic"></nav>
+          </div></div>
+        </div>
+        <div class="section" id="section-sources">
+          <button class="section-head" data-toggle="section-sources">
+            <span class="t">Sources</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="section-panel"><div>
+            <nav class="chipwrap" id="sources" aria-label="Filter by source"></nav>
+          </div></div>
+        </div>
+        <div class="section" id="section-regions">
+          <button class="section-head" data-toggle="section-regions">
+            <span class="t">World</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="section-panel"><div>
+            <nav class="chipwrap" id="regions" aria-label="Filter by region"></nav>
+          </div></div>
+        </div>
+        <p class="drawer-footnote">Leaning shown on cards is from public ratings where available, hand-curated
+          (not an API) -- most sources aren't independently rated.</p>
+        <p class="drawer-fresh" id="fresh"></p>
+        <div class="today-progress" id="today-progress">
+          <div class="tp-label">This session</div>
+          <div class="tp-count"><span id="tp-read"></span><span class="tp-of"> of <span id="tp-total"></span> read</span></div>
+          <div class="tp-bar"><div class="tp-fill" id="tp-fill"></div></div>
+        </div>
+      </div>
+    </aside>
     <div>
       <main class="stage" id="stage" aria-live="polite"></main>
       <div class="ctrls">
         <button class="rnd" id="prev" title="Previous (left arrow)" aria-label="Previous article">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <button class="rnd" id="ctrl-save" title="Save for later" aria-label="Save for later" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.2l2.85 5.78 6.38.93-4.61 4.5 1.09 6.36L12 17.76l-5.71 3.01 1.09-6.36-4.61-4.5 6.38-.93L12 3.2z"/></svg>
         </button>
         <button class="rnd" id="next" title="Next (right arrow)" aria-label="Next article">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
@@ -1448,6 +1589,11 @@ def render_html(articles: list) -> str:
     <aside class="queue" id="queue">
       <h3>Up next</h3>
       <div id="qlist"></div>
+      <div class="brief-card" id="brief-card">
+        <div class="brief-kicker">Your brief</div>
+        <div class="brief-headline" id="brief-headline"></div>
+        <div class="brief-sub" id="brief-sub"></div>
+      </div>
     </aside>
   </div>
 
@@ -1504,6 +1650,13 @@ def render_html(articles: list) -> str:
     var toastEl = document.getElementById('toast');
     var prevBtn = document.getElementById('prev');
     var nextBtn = document.getElementById('next');
+    // Paper skin only (see .ctrls #ctrl-save CSS) -- a second save button
+    // matching the mockup's Skip/Save/Read row, wired to the exact same
+    // toggleSave() the in-card save icon already uses, not a duplicate.
+    var ctrlSaveBtn = document.getElementById('ctrl-save');
+    var tpReadEl = document.getElementById('tp-read');
+    var tpTotalEl = document.getElementById('tp-total');
+    var tpFillEl = document.getElementById('tp-fill');
     var menuBtn = document.getElementById('menu-btn');
     var drawerEl = document.getElementById('drawer');
     var scrimEl = document.getElementById('scrim');
@@ -1743,9 +1896,15 @@ def render_html(articles: list) -> str:
       // gradient plus the same initials used on the avatar reads as
       // designed rather than broken, and costs nothing to generate since
       // source_hue()/source_initials() already exist for the avatar.
+      // .kicker is inert (display:none) under the glass skin -- only
+      // paper shows it, as the amber category badge overlaid on the
+      // image. Built here either way since it's just a-topic already in
+      // scope, cheaper than conditioning the markup on the active skin.
+      var kicker = (a.topic && a.topic !== 'General')
+        ? '<span class="kicker">' + esc(a.topic) + '</span>' : '';
       var media = img
-        ? '<div class="media"><img alt="" draggable="false" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(img) + '"><div class="scrim"></div></div>'
-        : '<div class="media noimg done"><span class="noimg-mark">' + esc(a.initials) + '</span></div>';
+        ? '<div class="media">' + kicker + '<img alt="" draggable="false" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(img) + '"><div class="scrim"></div></div>'
+        : '<div class="media noimg done">' + kicker + '<span class="noimg-mark">' + esc(a.initials) + '</span></div>';
       var also = (a.alsoFrom && a.alsoFrom.length)
         ? '<div class="also">also on <b>' + a.alsoFrom.map(esc).join('</b>, <b>') + '</b></div>'
         : '';
@@ -1813,6 +1972,20 @@ def render_html(articles: list) -> str:
       railEl.style.width = pct + '%';
       prevBtn.disabled = index === 0;
       nextBtn.disabled = index >= list.length;
+      var cur = list[index];
+      var curSaved = !!(cur && saved.has(cur.id));
+      ctrlSaveBtn.classList.toggle('on', curSaved);
+      ctrlSaveBtn.setAttribute('aria-pressed', curSaved ? 'true' : 'false');
+
+      // "This session" progress (paper skin only, sidebar) -- seen is
+      // sessionStorage-backed (see markSeen()), so this is genuinely
+      // session-scoped, not calendar-day, hence the label. Reuses the
+      // same `list` paintChrome already has, so it stays in sync with
+      // every filter change and navigation step for free.
+      var readCount = list.filter(function (a) {{ return seen.has(a.id); }}).length;
+      tpReadEl.textContent = readCount;
+      tpTotalEl.textContent = list.length;
+      tpFillEl.style.width = (list.length ? Math.min(100, (readCount / list.length) * 100) : 0) + '%';
     }}
 
     // Full rebuild: destroys and recreates the whole stack. Correct after
@@ -2334,6 +2507,18 @@ def render_html(articles: list) -> str:
       var top = stage.querySelector('.card.top');
       if (top) flyOut(top, 1); else advance();
     }});
+    ctrlSaveBtn.addEventListener('click', function () {{
+      var c = stage.querySelector('.card.top');
+      if (!c) return;
+      toggleSave(c.dataset.id, c.querySelector('.save'));
+      // toggleSave() only updates the one btn passed to it (the in-card
+      // icon) -- this is a second, separate button for the same article,
+      // so it needs its own sync rather than waiting for the next
+      // unrelated render() to call paintChrome().
+      var on = saved.has(c.dataset.id);
+      ctrlSaveBtn.classList.toggle('on', on);
+      ctrlSaveBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }});
 
     document.addEventListener('keydown', function (e) {{
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -2380,6 +2565,25 @@ def render_html(articles: list) -> str:
     }}
     paintFresh();
     setInterval(paintFresh, 60000);
+
+    // "Your brief" card (paper skin only, sidebar). Both numbers are
+    // derived from state the page already tracks -- built/minsOld() for
+    // freshness, the workflow's own 6-hourly restart cadence for the
+    // cycle length -- not fabricated. Worded conservatively ("~") since
+    // the workflow's own comments document that cron timing isn't exact.
+    var REBUILD_CYCLE_MIN = 360;
+    var briefHeadlineEl = document.getElementById('brief-headline');
+    var briefSubEl = document.getElementById('brief-sub');
+    function paintBrief() {{
+      var m = minsOld();
+      if (isNaN(m)) {{ briefHeadlineEl.textContent = ''; briefSubEl.textContent = ''; return; }}
+      var minsLeft = Math.max(0, Math.round(REBUILD_CYCLE_MIN - (m % REBUILD_CYCLE_MIN)));
+      briefHeadlineEl.textContent = '~' + minsLeft + ' min left in this cycle';
+      var next = new Date(Date.now() + minsLeft * 60000);
+      briefSubEl.textContent = 'Next check ~' + next.toLocaleTimeString(undefined, {{ hour: 'numeric', minute: '2-digit' }});
+    }}
+    paintBrief();
+    setInterval(paintBrief, 60000);
 
     // Jumps to a random not-yet-seen article in the current view rather
     // than reloading -- reloading did nothing *visible* most of the time
@@ -2437,6 +2641,30 @@ def render_html(articles: list) -> str:
       var mode = btn.dataset.theme;
       applyTheme(mode);
       try {{ localStorage.setItem(THEME_KEY, mode); }} catch (e2) {{}}
+    }});
+
+    /* ---------- skin switch (Glass = the default dark/light/auto theme
+       above; Paper = a fixed warm light palette, see [data-skin="paper"]
+       in the CSS -- it doesn't have its own dark/light/auto, so the
+       theme-switch above just hides itself while paper is active) ---- */
+    var SKIN_KEY = 'newsdigest:skin';
+    var skinSwitch = document.getElementById('skin-switch');
+    function applySkin(skin) {{
+      if (skin === 'paper') document.documentElement.dataset.skin = 'paper';
+      else delete document.documentElement.dataset.skin;
+      skinSwitch.querySelectorAll('.theme-opt').forEach(function (b) {{
+        b.classList.toggle('on', b.dataset.skin === skin);
+      }});
+    }}
+    var savedSkin = 'glass';
+    try {{ savedSkin = localStorage.getItem(SKIN_KEY) || 'glass'; }} catch (e) {{}}
+    applySkin(savedSkin);
+    skinSwitch.addEventListener('click', function (e) {{
+      var btn = e.target.closest('.theme-opt');
+      if (!btn) return;
+      var skin = btn.dataset.skin;
+      applySkin(skin);
+      try {{ localStorage.setItem(SKIN_KEY, skin); }} catch (e2) {{}}
     }});
 
     // Card-size slider: one knob scales .stage height and .card width
