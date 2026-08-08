@@ -9,7 +9,7 @@ good, that's a two-weekend loss instead of a two-month one.
 
 Right now, before clustering/summarising exist, the feed-check stage already
 produces something worth using on its own: a swipeable card deck
-(`reports/index.html`, published via Pages) of every article the live feeds
+(`docs/index.html`, published via Pages) of every article the live feeds
 are currently carrying — title, source, time, a snippet, and a lead image
 where the feed has one. Drag or use the arrow keys to move between articles;
 tap "Read full article" to open one. Dark by default (light only if the
@@ -67,8 +67,8 @@ One job loops internally -- check feeds, commit, `sleep` 45 minutes,
 repeat -- for up to ~5h40m, then a coarse `schedule` trigger (every 6h)
 starts the next block. Or run it on demand from Actions tab →
 **Check feeds** → **Run workflow**. Each iteration writes
-`reports/feed_check.md`, `reports/feed_check.json`, and
-`reports/index.html`, and pushes them back to the repo.
+`docs/feed_check.md`, `docs/feed_check.json`, and
+`docs/index.html`, and pushes them back to the repo.
 
 Two things tried and rejected before this, for the record:
 
@@ -91,8 +91,10 @@ matters.
 **One-time setup, both required:**
 
 1. Settings → Pages → Source → **Deploy from a branch** → `main` /
-   `/reports`. Branch-based Pages auto-republishes on every push to
-   `reports/` with no deploy step needed -- required because
+   `/docs` (classic branch-based Pages only offers `/(root)` or `/docs`
+   as the folder choice, hence the pipeline writing there and not
+   `/reports`). Branch-based Pages auto-republishes on every push to
+   `docs/` with no deploy step needed -- required because
    `actions/deploy-pages` can only run once per job, not repeatedly from
    inside a loop.
 2. Nothing else -- `permissions: contents: write` (already in the

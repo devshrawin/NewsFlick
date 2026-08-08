@@ -21,10 +21,12 @@ name: Check feeds
 # version, and even a several-hour delay here barely matters.
 #
 # Pages deploys via classic branch-based Pages (Settings -> Pages ->
-# Source -> "Deploy from a branch" -> main / /reports), NOT the
+# Source -> "Deploy from a branch" -> main / /docs), NOT the
 # actions/deploy-pages step -- that step can't be called repeatedly from
-# inside a loop, only once per job. Branch-based Pages auto-republishes on
-# every push to reports/, so no deploy step is needed here at all.
+# inside a loop, only once per job. Branch-based Pages only offers /(root)
+# or /docs as the folder choice, hence /docs and not the original
+# /reports name. Branch-based Pages auto-republishes on every push to
+# docs/, so no deploy step is needed here at all.
 on:
   workflow_dispatch:
   schedule:
@@ -68,7 +70,7 @@ jobs:
           while true; do
             python pipeline/check_feeds.py
 
-            git add reports/
+            git add docs/
             if git diff --staged --quiet; then
               echo "No change in report — nothing to commit."
             else
@@ -99,8 +101,8 @@ jobs:
         run: |
           echo "### Feed check" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          if [ -f reports/feed_check.md ]; then
-            head -12 reports/feed_check.md >> "$GITHUB_STEP_SUMMARY"
+          if [ -f docs/feed_check.md ]; then
+            head -12 docs/feed_check.md >> "$GITHUB_STEP_SUMMARY"
           else
             echo "No report produced — check the loop step's log." >> "$GITHUB_STEP_SUMMARY"
           fi

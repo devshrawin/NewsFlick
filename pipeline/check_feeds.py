@@ -2,8 +2,8 @@
 Feed health check.
 
 Pings every feed in feeds.yaml and writes:
-  reports/feed_check.md    -- human-readable, for reading on a phone
-  reports/feed_check.json  -- machine-readable, consumed by the ingest stage
+  docs/feed_check.md    -- human-readable, for reading on a phone
+  docs/feed_check.json  -- machine-readable, consumed by the ingest stage
 
 No API keys needed.
 
@@ -34,9 +34,9 @@ ROOT = Path(__file__).resolve().parent.parent
 FEEDS_FILE = ROOT / "feeds.yaml"
 BIAS_FILE = ROOT / "source_bias.yaml"
 NOT_RATED = {"leaning": "Not rated", "cite_name": None, "cite_url": None}
-REPORT_MD = ROOT / "reports" / "feed_check.md"
-REPORT_JSON = ROOT / "reports" / "feed_check.json"
-REPORT_HTML = ROOT / "reports" / "index.html"
+REPORT_MD = ROOT / "docs" / "feed_check.md"
+REPORT_JSON = ROOT / "docs" / "feed_check.json"
+REPORT_HTML = ROOT / "docs" / "index.html"
 
 # Polite, identifiable UA tried first.
 UA_BOT = "newsdigest/0.1 (personal research; +https://github.com/devshrawin/newsdigest)"
@@ -517,7 +517,7 @@ def dedupe_articles(articles: list) -> list:
 
 
 def render_html(articles: list) -> str:
-    """Self-contained swipeable article deck -- open reports/index.html (or
+    """Self-contained swipeable article deck -- open docs/index.html (or
     the Pages URL) instead of poking at news.db to see what the feeds have.
 
     Everything (layout, filtering, the deck, the up-next queue) is built
