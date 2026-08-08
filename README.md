@@ -63,41 +63,40 @@ That keeps the tuning loop at seconds rather than minutes.
 
 ## Running the feed check
 
-Triggered every 45 minutes by an external free cron pinger (cron-job.org)
-calling GitHub's REST API `workflow_dispatch` endpoint, or on demand from
-Actions tab → **Check feeds** → **Run workflow**. Takes about a minute.
-Writes `reports/feed_check.md`, `reports/feed_check.json`, and
+One job loops internally -- check feeds, commit, `sleep` 45 minutes,
+repeat -- for up to ~5h40m, then a coarse `schedule` trigger (every 6h)
+starts the next block. Or run it on demand from Actions tab →
+**Check feeds** → **Run workflow**. Each iteration writes
+`reports/feed_check.md`, `reports/feed_check.json`, and
 `reports/index.html`, and pushes them back to the repo.
 
-GitHub's own `schedule` trigger used to run this, but checking the actual
-run history (`.../actions/workflows/{id}/runs` via the REST API) showed
-schedule-triggered runs arriving anywhere from 15 minutes to 10+ hours
-apart instead of every 45 — GitHub documents `schedule` as best-effort
-with no SLA, and it gets less reliable the more frequently you ask for it,
-with no catch-up for a dropped tick. `workflow_dispatch` fired instantly
-on every one of 16 manual runs checked, so the fix was to point a
-reliable external clock at that endpoint instead of tuning the cron
-expression further. Setup:
+Two things tried and rejected before this, for the record:
 
-1. GitHub → Settings → Developer settings → **Fine-grained personal
-   access tokens** → generate one scoped to only this repo, with
-   **Actions: Read and write** permission. Copy the token.
-2. Free account at cron-job.org (or similar) → new cron job:
-   - URL: `https://api.github.com/repos/devshrawin/newsdigest/actions/workflows/check-feeds.yml/dispatches`
-   - Method: `POST`
-   - Headers: `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`, `Content-Type: application/json`
-   - Body: `{"ref":"main"}`
-   - Schedule: every 45 minutes
-3. Fine-grained tokens require an expiry (max 1 year) — the pinger silently
-   stops working once it expires; put a reminder in before that date.
+- **GitHub's own `schedule` trigger, alone.** Checked the actual run
+  history (`.../actions/workflows/{id}/runs` via the REST API): even a
+  single *hourly* cron went 4+ hours with zero scheduled fires on this
+  repo. `schedule` is best-effort with no SLA and no catch-up for a
+  dropped tick -- true at any frequency here, not just sub-hourly ones.
+- **An external cron service (cron-job.org) calling `workflow_dispatch`.**
+  Worked, but needed a third-party account plus a personal access token
+  to babysit (expiry, rotation) for something GitHub can do to itself.
 
-The workflow also deploys `reports/` to GitHub Pages. **One-time setup:**
-Settings → Pages → Source → **GitHub Actions**. After that, the run's job
-summary links straight to the deck. The `github-pages` environment's
-branch protection rule (Settings → Environments → github-pages) controls
-which branches are allowed to deploy — keep it restricted to `main` day
-to day, since there's only one live Pages site and any allowed branch's
-run overwrites it.
+The `sleep`-loop keeps the actual 45-min cadence inside one running job,
+which doesn't depend on GitHub's scheduler at all once started. The
+`schedule` trigger only has to fire roughly every 6 hours to restart the
+chain -- coarse, infrequent triggers are far less prone to the
+congestion/drop behavior above, and even a several-hour delay there barely
+matters.
+
+**One-time setup, both required:**
+
+1. Settings → Pages → Source → **Deploy from a branch** → `main` /
+   `/reports`. Branch-based Pages auto-republishes on every push to
+   `reports/` with no deploy step needed -- required because
+   `actions/deploy-pages` can only run once per job, not repeatedly from
+   inside a loop.
+2. Nothing else -- `permissions: contents: write` (already in the
+   workflow) is all a loop iteration needs to check, commit, and push.
 
 Feeds marked DEAD or STALE get deleted from `feeds.yaml` or their URL fixed.
 

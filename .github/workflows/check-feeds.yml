@@ -1,26 +1,37 @@
 name: Check feeds
 
-# Triggered externally every 45 minutes by a free cron pinger (cron-job.org)
-# calling the GitHub REST API's workflow_dispatch endpoint -- see README for
-# the exact setup. No API keys are stored in this repo; the pinger holds its
-# own PAT.
+# Runs a single long-lived job that checks feeds, commits, and repeats
+# every 45 minutes internally via a plain `sleep` loop -- for up to ~5h40m
+# per job, then a coarse restart schedule below kicks off the next block.
 #
-# GitHub's own `schedule:` trigger used to live here (three offset cron
-# lines emulating a 45-min cadence). Dropped it after checking the actual
-# run history via the REST API: schedule-triggered runs were arriving
-# 15 min to 10+ hours apart instead of every 45 -- `schedule` is documented
-# by GitHub as best-effort with no SLA, and gets worse the more frequently
-# you ask for it, with no catch-up for a dropped tick. workflow_dispatch,
-# by contrast, fired instantly on all 16 manual runs checked -- so an
-# external, reliable clock calling that endpoint is the fix, not a
-# different cron expression.
+# Why not just a `schedule:` trigger firing every 45 min? Tried that first
+# (see git history) and checked the actual run history via the REST API:
+# even a single *hourly* cron went 4+ hours with zero scheduled fires on
+# this repo. `schedule:` is best-effort with no SLA and no catch-up for a
+# dropped tick -- that's true at any frequency here, not just high ones.
+# An external cron pinger calling workflow_dispatch (also tried) works but
+# needs a third-party account and a PAT to babysit -- more moving parts
+# than this needs.
+#
+# This sidesteps both: the actual 45-min cadence lives in a bash `sleep`
+# inside one running job, which doesn't depend on GitHub's scheduler at
+# all once started. The `schedule:` below only has to fire roughly every
+# 6 hours to keep the chain going -- coarse, infrequent triggers are far
+# less prone to the congestion/drop behavior that killed the frequent
+# version, and even a several-hour delay here barely matters.
+#
+# Pages deploys via classic branch-based Pages (Settings -> Pages ->
+# Source -> "Deploy from a branch" -> main / /reports), NOT the
+# actions/deploy-pages step -- that step can't be called repeatedly from
+# inside a loop, only once per job. Branch-based Pages auto-republishes on
+# every push to reports/, so no deploy step is needed here at all.
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "11 */6 * * *"
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: check-feeds
@@ -29,14 +40,10 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # Budget: 32 feeds x (2 UA attempts x 12s TIMEOUT + 2s backoff + 1s
-    # politeness) ~= 24 min worst case, so 25 could be killed mid-run on a
-    # bad-network hour -- and a kill means no report and no deploy. Re-do this
-    # arithmetic if you add feeds or raise TIMEOUT.
-    timeout-minutes: 40
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    # Comfortably under GitHub's 6h hard cap on hosted-runner job duration,
+    # leaving room for setup/checkout/final commit before that cap would
+    # kill the job mid-loop.
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v7
 
@@ -48,52 +55,52 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      - name: Check feeds
-        run: python pipeline/check_feeds.py
-
-      # Commit BEFORE deploying. The other order meant a failed push (protected
-      # branch, or a rebase conflict on reports/) still shipped to Pages, so
-      # the served page permanently disagreed with the committed one and the
-      # job went red with no way to tell which copy was live.
-      - name: Commit report
+      - name: Loop feed checks every 45 minutes
         run: |
-          set -euo pipefail
+          set -uo pipefail
           git config user.name  "feed-check-bot"
           git config user.email "actions@github.com"
-          git add reports/
-          if git diff --staged --quiet; then
-            echo "No change in report — nothing to commit."
-            exit 0
-          fi
-          git commit -m "feed check $(date -u '+%Y-%m-%d %H:%M')"
-          # Push directly. Only if that's rejected do we rebase and retry once.
-          # An unconditional 'git pull --rebase' here is what silently swallowed
-          # the push in testing, leaving a green job with no report delivered.
-          if ! git push origin "HEAD:${GITHUB_REF_NAME}"; then
-            echo "Push rejected — rebasing onto origin/${GITHUB_REF_NAME} and retrying."
-            git fetch origin "${GITHUB_REF_NAME}"
-            git rebase "origin/${GITHUB_REF_NAME}"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
-          echo "Report pushed."
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: reports
+          # 5h20m of looping -- leaves ~20min of the 350min job budget free
+          # for this last iteration's own check+commit to finish cleanly
+          # before the hosted-runner timeout would kill it mid-push.
+          END=$(( $(date +%s) + 5*3600 + 20*60 ))
+          while true; do
+            python pipeline/check_feeds.py
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+            git add reports/
+            if git diff --staged --quiet; then
+              echo "No change in report — nothing to commit."
+            else
+              git commit -m "feed check $(date -u '+%Y-%m-%d %H:%M')"
+              # Push directly. Only if that's rejected do we rebase and
+              # retry once. An unconditional 'git pull --rebase' here is
+              # what silently swallowed the push in testing, leaving a
+              # green job with no report delivered.
+              if ! git push origin "HEAD:${GITHUB_REF_NAME}"; then
+                echo "Push rejected — rebasing onto origin/${GITHUB_REF_NAME} and retrying."
+                git fetch origin "${GITHUB_REF_NAME}"
+                git rebase "origin/${GITHUB_REF_NAME}"
+                git push origin "HEAD:${GITHUB_REF_NAME}"
+              fi
+              echo "Report pushed."
+            fi
+
+            NOW=$(date +%s)
+            if [ "$NOW" -ge "$END" ]; then
+              echo "Loop budget spent for this job -- the next scheduled run picks up from here."
+              break
+            fi
+            sleep 2700
+          done
 
       - name: Summary
         if: always()
         run: |
           echo "### Feed check" >> "$GITHUB_STEP_SUMMARY"
-          echo "Articles page: ${{ steps.deployment.outputs.page_url }}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           if [ -f reports/feed_check.md ]; then
             head -12 reports/feed_check.md >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "No report produced — check the 'Check feeds' step log." >> "$GITHUB_STEP_SUMMARY"
+            echo "No report produced — check the loop step's log." >> "$GITHUB_STEP_SUMMARY"
           fi
