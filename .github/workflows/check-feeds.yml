@@ -37,7 +37,13 @@ permissions:
 
 concurrency:
   group: check-feeds
-  cancel-in-progress: false
+  # true, not false: the loop is stateless -- each iteration does a full
+  # independent check+commit+push, so if the 6-hourly restart trigger
+  # fires while a previous loop is still alive, cancelling it and
+  # starting fresh loses at most one unfinished iteration and never
+  # corrupts anything. false would instead queue the new run, and queued
+  # runs can stack faster than 6h blocks drain.
+  cancel-in-progress: true
 
 jobs:
   check:
@@ -68,7 +74,15 @@ jobs:
           # before the hosted-runner timeout would kill it mid-push.
           END=$(( $(date +%s) + 5*3600 + 20*60 ))
           while true; do
-            python pipeline/check_feeds.py
+            # set -uo pipefail (no -e) means a failing check_feeds.py
+            # falls through to the git-diff check below rather than
+            # aborting the loop -- deliberate, one bad run (a transient
+            # network blip, say) shouldn't kill a 5h20m loop over one
+            # feed. But silent is wrong: surface it as a job annotation
+            # so a real recurring failure doesn't go unnoticed forever.
+            if ! python pipeline/check_feeds.py; then
+              echo "::warning::check_feeds.py failed this iteration -- will retry after the sleep"
+            fi
 
             git add docs/
             if git diff --staged --quiet; then

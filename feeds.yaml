@@ -5,7 +5,7 @@
 # These URLs are best-effort. Run the feed-check workflow to find out
 # which are actually alive; delete or fix the dead ones.
 #
-# Last validated 2026-08-03 against every URL below (via pipeline/check_feeds.py's
+# Last validated 2026-08-08 against every URL below (via pipeline/check_feeds.py's
 # own fetch logic, not just a HEAD request). Verdicts move fast in this list --
 # re-validate before trusting "OK" for more than a few weeks.
 #   DEAD, not re-added: Firstpost, ThePrint, Scroll, The Wire (0 entries --
@@ -19,81 +19,117 @@
 #     Reuters World / Reuters India (feeds.reuters.com no longer resolves --
 #     Reuters discontinued public RSS years ago), Associated Press (404, same
 #     story -- apnews.com/rss isn't a real feed).
+#
+# `region:` is a per-feed default fed to classify_region() -- most of these
+# outlets are India-domestic, so an article that doesn't keyword-match any
+# specific region (common on a short teaser body) should default to India
+# rather than the meaningless "Other" bucket. Keyword detection still runs
+# first and wins when a story is clearly about somewhere else -- this only
+# fills in the article that matches nothing. Left unset on the genuinely
+# international outlets, where there's no sensible single default.
 
 feeds:
   # --- National ---
   - name: The Hindu
     url: https://www.thehindu.com/news/national/feeder/default.rss
+    region: India
   - name: The Hindu (Top)
     url: https://www.thehindu.com/feeder/default.rss
+    region: India
   - name: Indian Express
     url: https://indianexpress.com/section/india/feed/
+    region: India
   - name: Hindustan Times
     url: https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml
+    region: India
   - name: Times of India
     url: https://timesofindia.indiatimes.com/rssfeedstopstories.cms
+    region: India
   - name: NDTV
     url: https://feeds.feedburner.com/ndtvnews-india-news
+    region: India
   - name: News18
     url: https://www.news18.com/commonfeeds/v1/eng/rss/india.xml
+    region: India
   - name: India Today
     url: https://www.indiatoday.in/rss/1206578
+    region: India
   - name: Free Press Journal
     url: https://www.freepressjournal.in/stories.rss
+    region: India
   - name: Deccan Chronicle
     url: https://www.deccanchronicle.com/feeds.xml
+    region: India
   - name: Greater Kashmir
     url: https://www.greaterkashmir.com/rss
+    region: India
   - name: Kashmir Observer
     url: https://kashmirobserver.net/feed/
+    region: India
 
   # --- Business & Finance ---
   - name: Livemint
     url: https://www.livemint.com/rss/news
+    region: India
   - name: Economic Times
     url: https://economictimes.indiatimes.com/rssfeedstopstories.cms
+    region: India
   - name: Moneycontrol   # STALE at last check -- alive, just low-frequency
     url: https://www.moneycontrol.com/rss/latestnews.xml
+    region: India
 
   # --- Technology ---
   - name: Medianama
     url: https://www.medianama.com/feed/
+    region: India
   - name: Gadgets360
     url: https://feeds.feedburner.com/gadgets360-latest
+    region: India
   - name: Beebom
     url: https://beebom.com/feed/
+    region: India
   - name: Inc42
     url: https://inc42.com/feed/
+    region: India
   - name: TechPP   # STALE at last check -- alive, just low-frequency
     url: https://techpp.com/feed/
+    region: India
 
   # --- Sports ---
   - name: ESPN Cricinfo
     url: https://www.espncricinfo.com/rss/content/story/feeds/0.xml
+    region: India
   - name: Sportstar
     url: https://sportstar.thehindu.com/feeder/default.rss
+    region: India
 
   # --- Entertainment ---
   - name: Bollywood Hungama
     url: https://www.bollywoodhungama.com/feed/
+    region: India
   - name: Pinkvilla   # STALE at last check -- alive, just low-frequency
     url: https://www.pinkvilla.com/rss.xml
+    region: India
 
   # --- Government ---
   - name: MyGov India   # STALE at last check -- alive, just low-frequency
     url: https://blog.mygov.in/feed/
+    region: India
 
   # --- Fact check ---
   - name: Factly
     url: https://factly.in/feed/
+    region: India
   - name: Alt News   # STALE at last check -- alive, just low-frequency
     url: https://www.altnews.in/feed/
+    region: India
 
   # --- International ---
   - name: BBC World
     url: https://feeds.bbci.co.uk/news/world/rss.xml
   - name: BBC Asia
     url: https://feeds.bbci.co.uk/news/world/asia/rss.xml
+    region: Asia
   - name: Al Jazeera
     url: https://www.aljazeera.com/xml/rss/all.xml
   - name: Deutsche Welle

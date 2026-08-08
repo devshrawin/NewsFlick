@@ -23,8 +23,10 @@ import re
 import sys
 import time
 import statistics
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 import feedparser
 import requests
@@ -46,7 +48,7 @@ UA_BROWSER = (
     "(KHTML, like Gecko) Chrome/125.0 Safari/537.36"
 )
 
-TIMEOUT = 12   # 21 feeds x 2 attempts must fit well inside the workflow cap
+TIMEOUT = 12   # 32 feeds x 2 attempts must fit well inside the 45-min loop interval
 STUB_THRESHOLD = 400   # chars of body below which we call it a teaser
 STALE_HOURS = 48
 SKEW_HOURS = 2      # newest entry this far in the FUTURE = broken publisher clock
@@ -222,8 +224,50 @@ TOPIC_PATTERNS = {
 }
 
 
-def classify_topic(title: str, snippet: str) -> str:
-    text = f"{title} {snippet}"
+# Section name in the article's own URL path (indianexpress.com/section/
+# sports/..., timesofindia.../business/...) -- checked and confirmed this
+# is a stronger, cleaner signal than entry.tags in practice: most feeds
+# here don't emit <category> at all, and The Hindu's does but emits place
+# names ("Karnataka"), not topics, so it never matches TOPIC_KEYWORDS.
+# Publishers are far more consistent about putting the section in the URL.
+URL_TOPIC_HINTS = {
+    "sport": "Sports", "sports": "Sports", "cricket": "Sports",
+    "business": "Business", "markets": "Business", "money": "Business",
+    "entertainment": "Entertainment", "bollywood": "Entertainment",
+    "movies": "Entertainment", "movie-reviews": "Entertainment",
+    "technology": "Technology", "tech": "Technology", "gadgets": "Technology",
+    "politics": "Politics",
+    "world": "World", "international": "World",
+    "health": "Health",
+}
+
+
+def topic_hint_from_url(link: str) -> str | None:
+    if not link:
+        return None
+    segments = re.split(r"[/_-]", urlparse(link).path.lower())
+    for seg in segments:
+        if seg in URL_TOPIC_HINTS:
+            return URL_TOPIC_HINTS[seg]
+    return None
+
+
+def classify_topic(title: str, snippet: str, tags: list | None = None,
+                    url_hint: str | None = None) -> str:
+    # The URL path is checked first and, if it matches, wins outright --
+    # a publisher's own section taxonomy in its own URL is about as
+    # authoritative as this gets, more so than keyword-matching a headline
+    # plus a ~150-char teaser (most feeds here are teaser-only, which
+    # simply doesn't contain enough words to hit the keyword lists
+    # reliably). entry.tags is a weaker fallback signal folded into the
+    # same keyword scoring below, not a separate pass -- a publisher's tag
+    # vocabulary ("Cricket", "Bollywood") doesn't match our bucket names
+    # directly, so it still has to go through pattern matching, just
+    # weighted toward winning via repetition.
+    if url_hint:
+        return url_hint
+    tag_text = " ".join(tags or [])
+    text = f"{tag_text} {tag_text} {tag_text} {title} {snippet}"
     best_topic, best_hits = "General", 0
     for topic, patterns in TOPIC_PATTERNS.items():
         hits = sum(1 for p in patterns if p.search(text))
@@ -277,13 +321,20 @@ REGION_PATTERNS = {
 }
 
 
-def classify_region(title: str, snippet: str) -> str:
+def classify_region(title: str, snippet: str, default_region: str | None = None) -> str:
     text = f"{title} {snippet}"
     best_region, best_hits = "Other", 0
     for region, patterns in REGION_PATTERNS.items():
         hits = sum(1 for p in patterns if p.search(text))
         if hits > best_hits:
             best_region, best_hits = region, hits
+    # No keyword hit at all, not "hit something ambiguous" -- a domestic
+    # feed's story about a specific foreign country still keyword-matches
+    # to that region above; this only covers the story that mentions
+    # neither, which an India-news feed's default_region="India" should
+    # resolve to India, not the meaningless "Other" bucket.
+    if best_hits == 0 and default_region:
+        return default_region
     return best_region
 
 
@@ -321,7 +372,7 @@ def entry_image(entry):
     return None
 
 
-def check(name: str, url: str):
+def check(name: str, url: str, default_region: str | None = None):
     row = {
         "name": name, "url": url, "ok": False, "note": "",
         "entries": 0, "age_hours": None, "median_chars": 0, "dated": 0,
@@ -366,15 +417,17 @@ def check(name: str, url: str):
     for e, body, t in zip(entries, bodies, entry_times):
         title = e.get("title") or "(untitled)"
         snippet = (body[:SNIPPET_LEN] + "…") if len(body) > SNIPPET_LEN else body
+        tags = [tag.get("term") for tag in (e.get("tags") or []) if tag.get("term")]
+        link = entry_link(e)
         articles.append({
             "source": name,
             "title": title,
-            "link": entry_link(e),
+            "link": link,
             "published": t,
             "snippet": snippet,
             "image": entry_image(e),
-            "topic": classify_topic(title, body),
-            "region": classify_region(title, body),
+            "topic": classify_topic(title, body, tags, topic_hint_from_url(link)),
+            "region": classify_region(title, body, default_region),
         })
     return row, articles
 
@@ -514,6 +567,42 @@ def dedupe_articles(articles: list) -> list:
         rep["also_from"] = [s for s in c["members"] if s != rep["source"]]
         out.append(rep)
     return out
+
+
+def round_robin_by_source(articles: list, limit: int) -> list:
+    """Cap the deck at `limit` without letting whichever publisher posts
+    most often crowd out everyone else. A straight "sort by time, take the
+    newest N" let two cricket feeds alone eat a quarter of a 400-card deck
+    on a normal day -- posting frequency, not relevance, decided who made
+    the cut. This drains one article per source per round instead, so a
+    low-volume feed's newest item competes on recency against a
+    high-volume feed's newest item, not against that feed's whole backlog.
+
+    `articles` must already be sorted newest-first; each source's queue
+    then drains oldest-of-its-newest first, which is what makes the
+    interleave fair rather than favoring whichever source happens to sort
+    first within a round.
+    """
+    by_source = defaultdict(deque)
+    for a in articles:
+        by_source[a["source"]].append(a)
+
+    deck = []
+    queues = list(by_source.values())
+    while len(deck) < limit and queues:
+        for q in queues:
+            if not q:
+                continue
+            if len(deck) >= limit:
+                break
+            deck.append(q.popleft())
+        queues = [q for q in queues if q]
+
+    deck.sort(
+        key=lambda a: a["published"] or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )
+    return deck
 
 
 def render_html(articles: list) -> str:
@@ -1003,6 +1092,19 @@ def render_html(articles: list) -> str:
     position: absolute; inset: auto 0 0 0; height: 55%;
     background: linear-gradient(to top, var(--bg-2), transparent);
     pointer-events: none;
+  }}
+  /* Generated cover for articles with no lead image -- same hue as the
+     source's avatar, so it reads as a deliberate brand-tinted card rather
+     than a missing photo. */
+  .media.noimg {{
+    display: grid; place-items: center;
+    background: linear-gradient(150deg,
+      hsl(var(--hue) 40% 20%), hsl(calc(var(--hue) + 24) 36% 12%));
+  }}
+  .noimg-mark {{
+    font-family: var(--font-serif); font-weight: 500;
+    font-size: 3.2rem; letter-spacing: -.02em;
+    color: hsl(var(--hue) 55% 82% / .5);
   }}
 
   .body {{ flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 1.05rem 1.15rem 1.1rem; }}
@@ -1525,10 +1627,16 @@ def render_html(articles: list) -> str:
 
     /* ---------- filter chips ---------- */
 
-    function chip(label, attr, val, on, hue, i) {{
+    // labelHtml is raw HTML (callers pass pre-escaped text or literal icon
+    // markup like ICON.star) and goes in unescaped -- val is the filter
+    // value shown back in a data attribute, not display text, and always
+    // goes through esc(). Two different escaping rules on two adjacent
+    // params is exactly the kind of thing that reads as a mistake to the
+    // next person touching this; it isn't, but say so.
+    function chip(labelHtml, attr, val, on, hue, i) {{
       return '<button class="chip' + (on ? ' on' : '') + '" ' + attr + '="' + esc(val) + '"'
         + ' style="--i:' + i + (hue === undefined ? '' : ';--hue:' + hue) + '"'
-        + ' aria-pressed="' + (on ? 'true' : 'false') + '">' + label + '</button>';
+        + ' aria-pressed="' + (on ? 'true' : 'false') + '">' + labelHtml + '</button>';
     }}
 
     // Renders the same multi-select topic chips into any container (the
@@ -1627,9 +1735,17 @@ def render_html(articles: list) -> str:
       // gesture from grabbing a pointerdown that started over the photo --
       // without it, starting a swipe on the image dragged/selected the
       // picture instead of moving the card.
+      // No lead image (fact-check/government/business feeds carry these
+      // often -- Factly, MyGov, Economic Times all run image-light) used
+      // to mean the whole card got dropped from the deck. It doesn't
+      // anymore -- see round_robin_by_source()'s caller in main() -- so
+      // there needs to be *something* in the .media slot. A hue-tinted
+      // gradient plus the same initials used on the avatar reads as
+      // designed rather than broken, and costs nothing to generate since
+      // source_hue()/source_initials() already exist for the avatar.
       var media = img
         ? '<div class="media"><img alt="" draggable="false" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(img) + '"><div class="scrim"></div></div>'
-        : '';
+        : '<div class="media noimg done"><span class="noimg-mark">' + esc(a.initials) + '</span></div>';
       var also = (a.alsoFrom && a.alsoFrom.length)
         ? '<div class="also">also on <b>' + a.alsoFrom.map(esc).join('</b>, <b>') + '</b></div>'
         : '';
@@ -1641,6 +1757,12 @@ def render_html(articles: list) -> str:
       var lean = (a.leaning && a.leaning !== 'Not rated')
         ? '<span class="pill lean" title="' + esc(leanTitle) + '">' + esc(a.leaning) + '</span>'
         : '';
+      // "General" means the classifier found nothing, not that "General"
+      // is itself a real topic -- showing a pill that says nothing on
+      // roughly half the deck trained people to ignore all the pills.
+      var topicPill = (a.topic && a.topic !== 'General')
+        ? '<span class="pill">' + esc(a.topic) + '</span>'
+        : '';
       return ''
         + '<div class="tools">'
         +   '<button class="tool save' + (on ? ' on' : '') + '" data-act="save" title="Save for later"'
@@ -1651,7 +1773,7 @@ def render_html(articles: list) -> str:
         + '<div class="body">'
         +   '<div class="metarow">'
         +     '<span class="src"><span class="ava">' + esc(a.initials) + '</span>' + esc(a.source) + '</span>'
-        +     '<span class="pill">' + esc(a.topic) + '</span>'
+        +     topicPill
         +     lean
         +   '</div>'
         +   '<h2>' + esc(a.title) + '</h2>'
@@ -2447,7 +2569,7 @@ def main() -> int:
     all_articles = []
     for f in feeds:
         print(f"checking {f['name']} ...", flush=True)
-        r, arts = check(f["name"], f["url"])
+        r, arts = check(f["name"], f["url"], f.get("region"))
         r["verdict"] = verdict(r)
         print(f"   {r['verdict']} {r['note']}".rstrip(), flush=True)
         rows.append(r)
@@ -2459,6 +2581,21 @@ def main() -> int:
     stubs = [r for r in live if r["median_chars"] < STUB_THRESHOLD]
     total_items = sum(r["entries"] for r in live)
 
+    # Deck-building happens here, before feed_check.md is assembled, so its
+    # stats (merges/no-image/deck-limit drops) can land in the report's
+    # summary bullets -- they used to only reach print(), which meant they
+    # never showed up in the Actions job summary (head -12 feed_check.md).
+    deduped = dedupe_articles(all_articles)
+    merged = len(all_articles) - len(deduped)
+    no_image = len(deduped) - len([a for a in deduped if a.get("image")])
+    deduped.sort(
+        key=lambda a: a["published"] or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )
+    dropped = max(0, len(deduped) - DECK_LIMIT)
+    deck = round_robin_by_source(deduped, DECK_LIMIT)
+    sourced = len({a["source"] for a in deck})
+
     out = [
         "# Feed check",
         "",
@@ -2468,6 +2605,11 @@ def main() -> int:
         f"- {total_items} items visible right now across live feeds",
         f"- {len(stubs)} of {len(live)} live feeds are teaser-only "
         f"(<{STUB_THRESHOLD} chars) -> need article extraction",
+        f"- {len(all_articles)} articles -> {len(deduped)} after merging "
+        f"{merged} cross-agency duplicate{'s' if merged != 1 else ''}"
+        + (f", {no_image} shown with a generated cover (no lead image)" if no_image else ""),
+        f"- {sourced} feeds contributed to the {len(deck)}-card deck"
+        + (f" ({dropped} older card{'s' if dropped != 1 else ''} not shown, DECK_LIMIT={DECK_LIMIT})" if dropped else ""),
         "",
         f"Legend: OK / FUTURE (publisher clock wrong) / STALE (>{STALE_HOURS}h) / NO DATES / DEAD",
         "",
@@ -2503,39 +2645,14 @@ def main() -> int:
         {"checked_at": datetime.now(timezone.utc).isoformat(), "feeds": rows},
         indent=2, ensure_ascii=False,
     ), encoding="utf-8")
-    deduped = dedupe_articles(all_articles)
-    merged = len(all_articles) - len(deduped)
-
-    # A card with no image has nothing to show in the .media slot but a bare
-    # placeholder, and the Inshorts-style share export (render_html's JS) has
-    # no photo to composite -- so an imageless story is dropped from the deck
-    # entirely rather than rendered text-only. dedupe_articles() already
-    # prefers an image-bearing representative when merging near-duplicates,
-    # so this only drops stories where *no* source carried an image.
-    no_image = len(deduped) - len([a for a in deduped if a.get("image")])
-    deduped = [a for a in deduped if a.get("image")]
-
-    # Newest first, then cap. Undated entries sort last rather than winning the
-    # top of the deck by accident.
-    deduped.sort(
-        key=lambda a: a["published"] or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True,
-    )
-    dropped = max(0, len(deduped) - DECK_LIMIT)
-    deck = deduped[:DECK_LIMIT]
-
-    # Count the feeds that actually put an article in the deck, not the ones
-    # that merely graded OK: all_articles takes anything with r["ok"], which
-    # includes STALE/FUTURE/NO DATES, so len(live) would understate the deck.
-    sourced = len({a["source"] for a in deck})
     REPORT_HTML.write_text(render_html(deck), encoding="utf-8")
 
     print(f"\nwrote {REPORT_MD.name} + {REPORT_JSON.name} + {REPORT_HTML.name}")
     print(f"  {len(live)}/{len(rows)} feeds graded OK, {sourced} contributed to the deck")
-    print(f"  {len(all_articles)} articles -> {len(deduped) + no_image} after merging "
+    print(f"  {len(all_articles)} articles -> {len(deduped)} after merging "
           f"{merged} cross-agency duplicate{'s' if merged != 1 else ''}")
     if no_image:
-        print(f"  {no_image} card{'s' if no_image != 1 else ''} dropped for having no image")
+        print(f"  {no_image} card{'s' if no_image != 1 else ''} shown with a generated cover (no lead image)")
     if dropped:
         print(f"  deck capped at {DECK_LIMIT}: {dropped} older card"
               f"{'s' if dropped != 1 else ''} not shown (raise DECK_LIMIT to include them)")

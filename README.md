@@ -147,9 +147,12 @@ makes it an experiment rather than a hobby project.
   pause). Several Indian publishers block anything that doesn't look like a
   browser.
 - Request `TIMEOUT` is 12s, not 20s. At 20s the worst case was 14.3 min of
-  network wait against a 15 min workflow cap -- the job could be killed
-  mid-run. Cap is now 25 min and worst case is 9.4 min. If you raise TIMEOUT,
-  redo that arithmetic.
+  network wait, which mattered against the job's old single-run time cap.
+  The relevant cap since the sleep-loop scheduler shipped is different: a
+  single check_feeds.py run now needs to fit well inside the 45-min loop
+  interval, not the job's overall 350-min budget, or the sleep stacks on
+  top and cadence drifts. If you raise TIMEOUT or add feeds, redo that
+  arithmetic against 45 min, not the job timeout.
 - Schema does **not** set `journal_mode = WAL`. WAL is persistent, and
   `news.db-wal` is gitignored — committed rows would silently vanish on push.
 - `render_html`'s article deck renders from a JSON payload client-side (needed
@@ -197,12 +200,16 @@ makes it an experiment rather than a hobby project.
 - Saved ids are pruned against the current snapshot on load. They accumulate
   across hourly rebuilds but only ids still present can be displayed, so the
   chip counted articles the Saved view could not show.
-- The workflow no longer uses GitHub's `schedule` trigger at all (an
-  external cron pinger calls `workflow_dispatch` instead — see above).
-  The original fix here was offsetting off `:00`, the most congested cron
-  slot on GitHub; that helped some but the underlying run-history data
-  (checked via the REST API weeks later) showed `schedule` still drifting
-  by hours regardless of offset, which is what actually forced the switch.
+- The workflow's use of GitHub's `schedule` trigger has changed twice.
+  The original fix was offsetting off `:00`, the most congested cron slot
+  on GitHub; that helped some but run-history data (checked via the REST
+  API weeks later) showed `schedule` still drifting by hours regardless
+  of offset. Next it was dropped for an external cron pinger calling
+  `workflow_dispatch` — worked, but needed a third-party account and a
+  PAT to babysit. Current design (see "Running the feed check" above)
+  drops the external dependency too: a coarse `schedule` (every 6h,
+  infrequent enough to actually fire reliably) just restarts a job that
+  loops the real 45-min cadence internally via `sleep`.
 - `render()`'s full DOM rebuild on every `advance()` is why a swipe used to
   visibly jump: the promoted card popped straight to its final position
   instead of animating there, since a freshly-created element has nothing

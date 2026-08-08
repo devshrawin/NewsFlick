@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+news.db
 news.db-wal
 news.db-shm
 .env
