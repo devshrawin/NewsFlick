@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-08-09T14:22:03.887375+00:00",
+  "checked_at": "2026-08-09T15:10:05.235985+00:00",
   "feeds": [
     {
       "name": "The Hindu",
@@ -7,8 +7,8 @@
       "ok": true,
       "note": "",
       "entries": 60,
-      "age_hours": 0.0,
-      "median_chars": 124,
+      "age_hours": 0.1,
+      "median_chars": 151,
       "dated": 60,
       "verdict": "OK"
     },
@@ -18,8 +18,8 @@
       "ok": true,
       "note": "",
       "entries": 60,
-      "age_hours": 0.0,
-      "median_chars": 117,
+      "age_hours": 0.1,
+      "median_chars": 126,
       "dated": 60,
       "verdict": "OK"
     },
@@ -41,7 +41,7 @@
       "note": "",
       "entries": 100,
       "age_hours": 0.5,
-      "median_chars": 140,
+      "median_chars": 139,
       "dated": 100,
       "verdict": "OK"
     },
@@ -51,8 +51,8 @@
       "ok": true,
       "note": "",
       "entries": 44,
-      "age_hours": 0.7,
-      "median_chars": 390,
+      "age_hours": 0.5,
+      "median_chars": 386,
       "dated": 44,
       "verdict": "OK"
     },
@@ -62,7 +62,7 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 1.0,
+      "age_hours": 1.8,
       "median_chars": 151,
       "dated": 20,
       "verdict": "OK"
@@ -73,8 +73,8 @@
       "ok": true,
       "note": "",
       "entries": 200,
-      "age_hours": 0.0,
-      "median_chars": 164,
+      "age_hours": 0.1,
+      "median_chars": 165,
       "dated": 200,
       "verdict": "OK"
     },
@@ -84,7 +84,7 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 1.1,
+      "age_hours": 0.0,
       "median_chars": 76,
       "dated": 20,
       "verdict": "OK"
@@ -94,10 +94,10 @@
       "url": "https://www.freepressjournal.in/stories.rss",
       "ok": true,
       "note": "",
-      "entries": 71,
-      "age_hours": 0.5,
-      "median_chars": 2412,
-      "dated": 71,
+      "entries": 72,
+      "age_hours": 0.2,
+      "median_chars": 2541,
+      "dated": 72,
       "verdict": "OK"
     },
     {
@@ -117,7 +117,7 @@
       "ok": true,
       "note": "",
       "entries": 50,
-      "age_hours": 0.9,
+      "age_hours": 0.5,
       "median_chars": 2380,
       "dated": 50,
       "verdict": "OK"
@@ -128,7 +128,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 0.5,
+      "age_hours": 1.3,
       "median_chars": 3055,
       "dated": 10,
       "verdict": "OK"
@@ -139,8 +139,8 @@
       "ok": true,
       "note": "",
       "entries": 35,
-      "age_hours": 0.5,
-      "median_chars": 231,
+      "age_hours": 0.2,
+      "median_chars": 225,
       "dated": 35,
       "verdict": "OK"
     },
@@ -150,7 +150,7 @@
       "ok": true,
       "note": "",
       "entries": 50,
-      "age_hours": 0.9,
+      "age_hours": 0.2,
       "median_chars": 0,
       "dated": 50,
       "verdict": "OK"
@@ -183,7 +183,7 @@
       "ok": true,
       "note": "",
       "entries": 100,
-      "age_hours": 1.3,
+      "age_hours": 2.1,
       "median_chars": 483,
       "dated": 100,
       "verdict": "OK"
@@ -194,7 +194,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 23.1,
+      "age_hours": 23.9,
       "median_chars": 285,
       "dated": 10,
       "verdict": "OK"
@@ -205,7 +205,7 @@
       "ok": true,
       "note": "",
       "entries": 24,
-      "age_hours": 4.3,
+      "age_hours": 5.1,
       "median_chars": 4061,
       "dated": 24,
       "verdict": "OK"
@@ -216,7 +216,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 71.6,
+      "age_hours": 72.4,
       "median_chars": 8532,
       "dated": 10,
       "verdict": "STALE"
@@ -227,7 +227,7 @@
       "ok": true,
       "note": "",
       "entries": 100,
-      "age_hours": 0.6,
+      "age_hours": 0.1,
       "median_chars": 93,
       "dated": 100,
       "verdict": "OK"
@@ -237,10 +237,10 @@
       "url": "https://sportstar.thehindu.com/feeder/default.rss",
       "ok": true,
       "note": "",
-      "entries": 65,
+      "entries": 67,
       "age_hours": 0.1,
       "median_chars": 163,
-      "dated": 65,
+      "dated": 67,
       "verdict": "OK"
     },
     {
@@ -249,7 +249,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 4.7,
+      "age_hours": 5.5,
       "median_chars": 2122,
       "dated": 10,
       "verdict": "OK"
@@ -260,7 +260,7 @@
       "ok": true,
       "note": "",
       "entries": 50,
-      "age_hours": 3.7,
+      "age_hours": 4.5,
       "median_chars": 2419,
       "dated": 50,
       "verdict": "OK"
@@ -271,7 +271,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 51.7,
+      "age_hours": 52.5,
       "median_chars": 1773,
       "dated": 10,
       "verdict": "STALE"
@@ -282,7 +282,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 26.1,
+      "age_hours": 26.9,
       "median_chars": 2439,
       "dated": 10,
       "verdict": "OK"
@@ -293,7 +293,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 32.6,
+      "age_hours": 33.4,
       "median_chars": 6340,
       "dated": 10,
       "verdict": "OK"
@@ -304,7 +304,7 @@
       "ok": true,
       "note": "",
       "entries": 27,
-      "age_hours": 0.0,
+      "age_hours": 0.8,
       "median_chars": 114,
       "dated": 27,
       "verdict": "OK"
@@ -315,7 +315,7 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 19.3,
+      "age_hours": 20.1,
       "median_chars": 109,
       "dated": 20,
       "verdict": "OK"
@@ -326,8 +326,8 @@
       "ok": true,
       "note": "",
       "entries": 25,
-      "age_hours": 0.4,
-      "median_chars": 112,
+      "age_hours": 0.3,
+      "median_chars": 99,
       "dated": 25,
       "verdict": "OK"
     },
@@ -336,10 +336,10 @@
       "url": "https://rss.dw.com/rdf/rss-en-all",
       "ok": true,
       "note": "",
-      "entries": 142,
-      "age_hours": 0.3,
+      "entries": 143,
+      "age_hours": 0.7,
       "median_chars": 192,
-      "dated": 142,
+      "dated": 143,
       "verdict": "OK"
     },
     {
@@ -348,8 +348,8 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 1.7,
-      "median_chars": 199,
+      "age_hours": 2.5,
+      "median_chars": 192,
       "dated": 10,
       "verdict": "OK"
     }
