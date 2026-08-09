@@ -1,107 +1,107 @@
 # Feed check
 
-Run: 2026-08-09 10:49 UTC
+Run: 2026-08-09 11:37 UTC
 
 - **27 / 32 feeds usable**
-- 1797 items visible right now across live feeds
+- 1796 items visible right now across live feeds
 - 18 of 27 live feeds are teaser-only (<400 chars) -> need article extraction
-- 1832 articles -> 1751 after merging 81 cross-agency duplicates, 760 shown with a generated cover (no lead image)
-- 30 feeds contributed to the 400-card deck (1351 older cards not shown, DECK_LIMIT=400)
+- 1831 articles -> 1750 after merging 81 cross-agency duplicates, 753 shown with a generated cover (no lead image)
+- 30 feeds contributed to the 400-card deck (1350 older cards not shown, DECK_LIMIT=400)
 
 Legend: OK / FUTURE (publisher clock wrong) / STALE (>48h) / NO DATES / DEAD
 
 ## OK (27)
 
-**Al Jazeera** — 25 items, newest 0.6h ago, median body 114 chars, teaser
+**Al Jazeera** — 25 items, newest 0.7h ago, median body 114 chars, teaser
 `https://www.aljazeera.com/xml/rss/all.xml`
 
-**Alt News** — 10 items, newest 29.1h ago, median body 6340 chars, FULL TEXT
+**Alt News** — 10 items, newest 29.9h ago, median body 6340 chars, FULL TEXT
 `https://www.altnews.in/feed/`
 
-**BBC Asia** — 20 items, newest 15.8h ago, median body 109 chars, teaser
+**BBC Asia** — 20 items, newest 16.6h ago, median body 109 chars, teaser
 `https://feeds.bbci.co.uk/news/world/asia/rss.xml`
 
-**BBC World** — 26 items, newest 0.8h ago, median body 115 chars, teaser
+**BBC World** — 26 items, newest 1.6h ago, median body 115 chars, teaser
 `https://feeds.bbci.co.uk/news/world/rss.xml`
 
-**Beebom** — 10 items, newest 19.6h ago, median body 285 chars, teaser
+**Beebom** — 10 items, newest 20.4h ago, median body 285 chars, teaser
 `https://beebom.com/feed/`
 
-**Bollywood Hungama** — 10 items, newest 1.2h ago, median body 2122 chars, FULL TEXT
+**Bollywood Hungama** — 10 items, newest 2.0h ago, median body 2122 chars, FULL TEXT
 `https://www.bollywoodhungama.com/feed/`
 
-**Deccan Chronicle** — 476 items, newest 0.2h ago, median body 142 chars, teaser
+**Deccan Chronicle** — 468 items, newest 0.3h ago, median body 141 chars, teaser
 `https://www.deccanchronicle.com/feeds.xml`
 
-**Deutsche Welle** — 142 items, newest 1.8h ago, median body 192 chars, teaser
+**Deutsche Welle** — 142 items, newest 2.6h ago, median body 192 chars, teaser
 `https://rss.dw.com/rdf/rss-en-all`
 
-**ESPN Cricinfo** — 100 items, newest 5.1h ago, median body 92 chars, teaser
+**ESPN Cricinfo** — 100 items, newest 5.9h ago, median body 92 chars, teaser
 `https://www.espncricinfo.com/rss/content/story/feeds/0.xml`
 
-**Economic Times** — 50 items, newest 0.5h ago, median body 0 chars, teaser
+**Economic Times** — 50 items, newest 0.3h ago, median body 0 chars, teaser
 `https://economictimes.indiatimes.com/rssfeedstopstories.cms`
 
-**Factly** — 10 items, newest 22.6h ago, median body 2439 chars, FULL TEXT
+**Factly** — 10 items, newest 23.4h ago, median body 2439 chars, FULL TEXT
 `https://factly.in/feed/`
 
-**Free Press Journal** — 63 items, newest 0.3h ago, median body 2296 chars, FULL TEXT
+**Free Press Journal** — 68 items, newest 0.2h ago, median body 2358 chars, FULL TEXT
 `https://www.freepressjournal.in/stories.rss`
 
-**Gadgets360** — 100 items, newest 1.8h ago, median body 483 chars, FULL TEXT
+**Gadgets360** — 100 items, newest 2.6h ago, median body 483 chars, FULL TEXT
 `https://feeds.feedburner.com/gadgets360-latest`
 
-**Greater Kashmir** — 50 items, newest 0.2h ago, median body 2354 chars, FULL TEXT
+**Greater Kashmir** — 50 items, newest 0.5h ago, median body 2364 chars, FULL TEXT
 `https://www.greaterkashmir.com/rss`
 
-**Hindustan Times** — 100 items, newest 0.9h ago, median body 143 chars, teaser
+**Hindustan Times** — 100 items, newest 0.6h ago, median body 142 chars, teaser
 `https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml`
 
-**Inc42** — 24 items, newest 5.3h ago, median body 4061 chars, FULL TEXT
+**Inc42** — 24 items, newest 1.6h ago, median body 4061 chars, FULL TEXT
 `https://inc42.com/feed/`
 
 **India Today** — 20 items, newest 0.2h ago, median body 79 chars, teaser
 `https://www.indiatoday.in/rss/1206578`
 
-**Kashmir Observer** — 10 items, newest 1.9h ago, median body 3055 chars, FULL TEXT
+**Kashmir Observer** — 10 items, newest 2.7h ago, median body 3055 chars, FULL TEXT
 `https://kashmirobserver.net/feed/`
 
-**Livemint** — 35 items, newest 0.6h ago, median body 231 chars, teaser
+**Livemint** — 35 items, newest 0.4h ago, median body 231 chars, teaser
 `https://www.livemint.com/rss/news`
 
-**NDTV** — 20 items, newest 1.4h ago, median body 140 chars, teaser
+**NDTV** — 20 items, newest 2.2h ago, median body 140 chars, teaser
 `https://feeds.feedburner.com/ndtvnews-india-news`
 
-**NPR** — 10 items, newest 1.1h ago, median body 203 chars, teaser
+**NPR** — 10 items, newest 1.9h ago, median body 203 chars, teaser
 `https://feeds.npr.org/1001/rss.xml`
 
 **News18** — 200 items, newest 0.0h ago, median body 165 chars, teaser
 `https://www.news18.com/commonfeeds/v1/eng/rss/india.xml`
 
-**Pinkvilla** — 50 items, newest 1.1h ago, median body 2419 chars, FULL TEXT
+**Pinkvilla** — 50 items, newest 1.0h ago, median body 2419 chars, FULL TEXT
 `https://www.pinkvilla.com/rss.xml`
 
-**Sportstar** — 71 items, newest 0.1h ago, median body 166 chars, teaser
+**Sportstar** — 72 items, newest 0.1h ago, median body 166 chars, teaser
 `https://sportstar.thehindu.com/feeder/default.rss`
 
-**The Hindu** — 60 items, newest 0.1h ago, median body 160 chars, teaser
+**The Hindu** — 60 items, newest 0.2h ago, median body 165 chars, teaser
 `https://www.thehindu.com/news/national/feeder/default.rss`
 
-**The Hindu (Top)** — 60 items, newest 0.1h ago, median body 160 chars, teaser
+**The Hindu (Top)** — 60 items, newest 0.0h ago, median body 165 chars, teaser
 `https://www.thehindu.com/feeder/default.rss`
 
-**Times of India** — 45 items, newest 0.2h ago, median body 390 chars, teaser
+**Times of India** — 46 items, newest 0.4h ago, median body 395 chars, teaser
 `https://timesofindia.indiatimes.com/rssfeedstopstories.cms`
 
 ## STALE (3)
 
-**Moneycontrol** — 15 items, newest 20114.6h ago, median body 161 chars, teaser
+**Moneycontrol** — 15 items, newest 20115.4h ago, median body 161 chars, teaser
 `https://www.moneycontrol.com/rss/latestnews.xml`
 
-**MyGov India** — 10 items, newest 48.2h ago, median body 1773 chars, FULL TEXT
+**MyGov India** — 10 items, newest 49.0h ago, median body 1773 chars, FULL TEXT
 `https://blog.mygov.in/feed/`
 
-**TechPP** — 10 items, newest 68.1h ago, median body 8532 chars, FULL TEXT
+**TechPP** — 10 items, newest 68.9h ago, median body 8532 chars, FULL TEXT
 `https://techpp.com/feed/`
 
 ## DEAD (2)
