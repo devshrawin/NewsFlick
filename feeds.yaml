@@ -7,11 +7,10 @@
 # These URLs are best-effort. Run the feed-check workflow to find out
 # which are actually alive; delete or fix the dead ones.
 #
-# Last validated 2026-08-08 against the pre-expansion list (via
-# pipeline/check_feeds.py's own fetch logic, not just a HEAD request).
-# The new batch of ~30 international feeds below has NOT been validated
-# yet as of this edit -- run the pipeline once and prune whatever comes
-# back DEAD before trusting this comment again.
+# Last validated 2026-08-10, full list including the international batch
+# (via pipeline/check_feeds.py's own fetch logic, not just a HEAD request).
+# 63/73 graded OK. Verdicts move fast -- re-validate before trusting "OK"
+# for more than a few weeks.
 #   DEAD, not re-added: Firstpost, ThePrint, Scroll, The Wire (0 entries --
 #     feed URL moved), Deccan Herald (404), Telegraph India / The Tribune /
 #     Business Standard (403 -- blocking non-browser UA even with the
@@ -22,7 +21,10 @@
 #     (0 entries), Down To Earth / ISRO (404), PIB / BOOM Live (0 entries),
 #     Reuters World / Reuters India (feeds.reuters.com no longer resolves --
 #     Reuters discontinued public RSS years ago), Associated Press (404, same
-#     story -- apnews.com/rss isn't a real feed).
+#     story -- apnews.com/rss isn't a real feed), PolitiFact (404), Politico
+#     (403), CNN World / CNN Top Stories / Wall Street Journal World (still
+#     200 OK but stuck serving 1.5-2.9-year-old cached content -- frozen,
+#     not just low-frequency like the STALE-flagged ones below).
 #
 # `region:` is a per-feed default fed to classify_region() -- most of these
 # outlets are India-domestic, so an article that doesn't keyword-match any
@@ -94,8 +96,6 @@ feeds:
     region: India
   - name: CNBC
     url: https://www.cnbc.com/id/100003114/device/rss/rss.html
-  - name: Wall Street Journal World
-    url: https://feeds.a.dj.com/rss/RSSWorldNews.xml
   - name: Forbes
     url: https://www.forbes.com/business/feed/
   - name: Business Insider
@@ -168,8 +168,6 @@ feeds:
     region: India
   - name: Snopes
     url: https://www.snopes.com/feed/
-  - name: PolitiFact
-    url: https://www.politifact.com/rss/all/
 
   # --- International / World ---
   - name: BBC World
@@ -190,10 +188,6 @@ feeds:
   - name: The Guardian India
     url: https://www.theguardian.com/world/india/rss
     region: India
-  - name: CNN World
-    url: http://rss.cnn.com/rss/edition_world.rss
-  - name: CNN Top Stories
-    url: http://rss.cnn.com/rss/edition.rss
   - name: New York Times World
     url: https://rss.nytimes.com/services/xml/rss/nyt/World.xml
   - name: New York Times Home
@@ -226,8 +220,6 @@ feeds:
     url: https://www.vox.com/rss/index.xml
   - name: The Atlantic
     url: https://www.theatlantic.com/feed/all/
-  - name: Politico
-    url: https://www.politico.com/rss/politics08.xml
   - name: Axios
     url: https://api.axios.com/feed/
   - name: The Hill
