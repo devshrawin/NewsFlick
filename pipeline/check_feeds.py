@@ -813,16 +813,9 @@ def render_html(articles: list) -> str:
     font-family: var(--font-serif); font-size: 1.4rem; font-weight: 800; letter-spacing: -.02em;
   }}
   .brand-mark {{ width: 1.5rem; height: 1.5rem; flex: none; }}
-  /* The tan block is the one piece of the mark that's a fixed brand color
-     rather than a var(--*) token -- it stays tan in both themes, same as
-     the frame/badge/lines flip with var(--ink)/var(--bg). Pulsing it
-     (not a separate dot, per feedback) reads as a small "still live" cue
-     without adding any new element to the mark. */
-  @keyframes brandPulse {{
-    0%, 70%, 100% {{ opacity: 1; }}
-    35% {{ opacity: .5; }}
-  }}
-  .brand-pulse {{ animation: brandPulse 3.4s var(--out) infinite; transform-origin: center; }}
+  .bar-right {{ display: none; align-items: center; gap: 1.1rem; margin-left: auto; }}
+  .build-stamp {{ font-family: var(--font-mono); font-size: .68rem; color: var(--sub); white-space: nowrap; }}
+  .theme-switch.header-switch {{ margin: 0; }}
   .ghost {{
     display: inline-flex; align-items: center; gap: .34rem;
     border: 1px solid var(--line-2); background: var(--glass-2); color: var(--sub);
@@ -864,6 +857,7 @@ def render_html(articles: list) -> str:
   .chip.on {{
     color: var(--bg); border-color: var(--ink); background: var(--ink);
   }}
+  .chip:disabled {{ opacity: .35; cursor: default; pointer-events: none; }}
 
   /* ---- collapsible left drawer (topics + sources moved out of the top bar) ---- */
   .scrim {{
@@ -934,6 +928,17 @@ def render_html(articles: list) -> str:
   }}
   .drawer-fresh {{
     font-family: var(--font-mono); font-size: .68rem; color: var(--sub); opacity: .6;
+    margin: .7rem 0 0; padding: 0 1.1rem;
+  }}
+  .drawer-show {{
+    display: block; width: calc(100% - 2.2rem); margin: 1rem 1.1rem 0;
+    padding: .8rem 1rem; border-radius: 2px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg);
+    font-family: var(--font-sans); font-weight: 700; font-size: .74rem; letter-spacing: .1em; text-transform: uppercase;
+    cursor: pointer;
+  }}
+  .drawer-show:hover {{ opacity: .85; }}
+  .drawer-keys {{
+    font-family: var(--font-mono); font-size: .66rem; color: var(--sub); opacity: .6; line-height: 1.5;
     margin: .7rem 0 0; padding: 0 1.1rem;
   }}
 
@@ -1046,7 +1051,13 @@ def render_html(articles: list) -> str:
   .card.drag {{ transition: none !important; }}
   .card:not(.drag) {{ transition: transform .42s var(--spring), opacity .3s var(--out), box-shadow .3s; }}
 
-  .media {{ position: relative; flex: none; height: 42%; background: var(--bg-2); overflow: hidden; }}
+  /* Lead image now lives inside .body, after the headline/summary -- a
+     fixed-height band rather than a masthead, matching the mockup's
+     "text first, photo is a footnote" card. */
+  .media {{
+    position: relative; flex: none; height: 30%; min-height: 7rem; background: var(--bg-2);
+    overflow: hidden; margin: .7rem 0 0; border: 1px solid var(--line);
+  }}
   .media img {{
     width: 100%; height: 100%; object-fit: cover; display: block;
     opacity: 0; transform: scale(1.06);
@@ -1069,8 +1080,19 @@ def render_html(articles: list) -> str:
     background: linear-gradient(to top, var(--bg-2), transparent);
     pointer-events: none;
   }}
-  .body {{ flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 1.05rem 1.15rem 1.1rem; }}
-  .metarow {{ display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .55rem; }}
+  .media-cap {{
+    position: absolute; left: .5rem; bottom: .5rem;
+    font-family: var(--font-mono); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--bg); background: rgba(0,0,0,.55); padding: .22rem .45rem;
+  }}
+  .body {{ flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 1.05rem 1.15rem 1.1rem; overflow-y: auto; }}
+  .metarow {{
+    display: flex; align-items: center; justify-content: space-between; gap: .4rem;
+    margin-bottom: .5rem; padding-bottom: .55rem; border-bottom: 1px solid var(--line);
+  }}
+  .metarow time {{ font-family: var(--font-mono); font-size: .7rem; color: var(--sub); font-variant-numeric: tabular-nums; flex: none; }}
+  .topicrow {{ display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin-bottom: .55rem; }}
+  .region-tag {{ font-family: var(--font-mono); font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: var(--sub); }}
   .src {{
     display: inline-flex; align-items: center; gap: .5rem;
     font-size: .82rem; font-weight: 500; letter-spacing: -.005em; color: var(--ink);
@@ -1087,6 +1109,14 @@ def render_html(articles: list) -> str:
     color: var(--bg); background: var(--ink);
     border: 1px solid var(--ink); padding: .2rem .5rem; border-radius: 0;
   }}
+  /* Print registration marks -- purely decorative, same four dots after
+     every topic pill, no meaning tied to the story itself. */
+  .regmarks {{ display: inline-flex; align-items: center; gap: .22em; }}
+  .regmarks i {{ width: 5px; height: 5px; border-radius: 50%; display: inline-block; }}
+  .regmarks i:nth-child(1) {{ background: #17150f; }}
+  .regmarks i:nth-child(2) {{ background: #ffd400; }}
+  .regmarks i:nth-child(3) {{ background: #ec1c5c; }}
+  .regmarks i:nth-child(4) {{ background: #00aeef; }}
   /* Political-leaning pill. Self-curated (source_bias.yaml), not from an
      API -- see the drawer footer disclaimer. A source with no entry gets no
      pill at all, so "unrated" never gets mistaken for a "Center" judgment.
@@ -1106,19 +1136,16 @@ def render_html(articles: list) -> str:
   .card h2 {{
     margin: 0 0 .4rem; font-family: var(--font-serif); font-size: 1.4rem; line-height: 1.18;
     font-weight: 800; letter-spacing: -.02em;
-    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }}
-  .also {{ font-size: .72rem; color: var(--sub); margin-bottom: .45rem; }}
-  .also b {{ color: var(--ink); font-weight: 650; }}
+  .also {{ font-size: .72rem; color: var(--sub); margin: .7rem 0 0; padding-top: .6rem; border-top: 1px solid var(--line); font-style: italic; }}
+  .also b {{ color: var(--ink); font-weight: 650; font-style: normal; }}
   .snip {{
-    margin: 0; color: var(--sub); font-size: .875rem; line-height: 1.52; flex: 1; min-height: 0;
-    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    margin: 0; color: var(--sub); font-size: .875rem; line-height: 1.52;
   }}
   .foot {{
-    display: flex; align-items: center; justify-content: space-between; gap: .6rem;
-    margin-top: .85rem; padding-top: .7rem; border-top: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: flex-start; gap: .6rem;
+    margin-top: .85rem; padding-top: .1rem;
   }}
-  .foot time {{ font-family: var(--font-mono); font-size: .7rem; color: var(--sub); font-variant-numeric: tabular-nums; }}
   .read {{
     display: inline-flex; align-items: center; gap: .35rem;
     font-family: var(--font-sans); font-weight: 700; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
@@ -1149,22 +1176,22 @@ def render_html(articles: list) -> str:
      hidden since forward stays drag-only on phones); it never changes
      which control does what. */
   .ctrls {{
-    display: flex; align-items: center; justify-content: center; gap: .4rem;
-    margin: 1.4rem auto 0; position: relative; z-index: 2; width: fit-content;
+    display: flex; align-items: center; justify-content: center; gap: .6rem;
+    margin: 1rem auto 0; position: relative; z-index: 2; width: fit-content;
   }}
   .rnd {{
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem;
-    min-width: 3.6rem; padding: .55rem .5rem;
-    border-radius: 0; border: 1px solid var(--line-2); background: var(--glass-2); color: var(--ink);
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: .68rem .9rem; min-height: 2.3rem;
+    border-radius: 2px; border: 1px solid var(--ink); background: transparent; color: var(--ink);
     cursor: pointer;
-    transition: transform .18s var(--spring), border-color .2s, color .2s, background .2s;
+    font-family: var(--font-sans); font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    transition: transform .18s var(--spring), background .2s, color .2s;
   }}
-  .rnd svg {{ width: 1.05rem; height: 1.05rem; }}
-  .rnd-label {{
-    font-family: var(--font-sans); font-size: .62rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
-  }}
-  .rnd:hover:not(:disabled) {{ border-color: var(--accent); color: var(--accent); }}
+  .rnd svg {{ display: none; }}
+  .rnd-label {{ font: inherit; letter-spacing: inherit; }}
+  .rnd:hover:not(:disabled) {{ background: var(--ink); color: var(--bg); }}
   .rnd:active:not(:disabled) {{ transform: scale(.94); }}
+  .rnd:disabled {{ opacity: .4; cursor: default; }}
   .rnd:disabled {{ opacity: .35; cursor: default; }}
   .rnd.on {{ background: var(--ink); border-color: var(--ink); color: var(--bg); }}
   .rnd.on:hover {{ color: var(--bg); border-color: var(--ink); }}
@@ -1173,23 +1200,37 @@ def render_html(articles: list) -> str:
   .rnd.solid:hover {{ color: var(--bg); border-color: var(--ink); opacity: .85; }}
   .ctrls-sep {{ width: 1px; align-self: stretch; background: var(--line-2); margin: 0 .3rem; }}
   .count {{ text-align: center; color: var(--sub); font-size: .78rem; margin-bottom: .7rem; font-variant-numeric: tabular-nums; }}
+  .deck-status {{
+    display: flex; align-items: baseline; justify-content: center; gap: .6rem;
+    font-family: var(--font-mono); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: var(--sub);
+    margin-bottom: .6rem; font-variant-numeric: tabular-nums;
+  }}
+  .deck-status .sep {{ width: 1px; height: .65rem; background: var(--line-2); }}
+  .deck-status:empty {{ display: none; }}
 
   .queue {{ display: none; }}
-  .queue h3 {{
-    font-family: var(--font-serif); font-size: 1.05rem; font-weight: 800;
-    color: var(--ink); margin: 0 0 .7rem; padding-bottom: .55rem; border-bottom: 3px double var(--ink);
+  .queue-head {{
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin: 0 0 .7rem; padding-bottom: .55rem; border-bottom: 3px double var(--ink);
   }}
+  .queue h3 {{ font-family: var(--font-serif); font-size: 1.05rem; font-weight: 800; color: var(--ink); margin: 0; }}
+  .queue-head span {{ font-family: var(--font-mono); font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: var(--sub); }}
   .qi {{
-    display: flex; gap: .6rem; align-items: flex-start; width: 100%; text-align: left;
-    padding: .55rem .6rem; border-radius: 13px; border: 1px solid transparent;
+    display: flex; gap: .7rem; align-items: flex-start; width: 100%; text-align: left;
+    padding: .55rem .1rem; border-radius: 0; border: 0; border-bottom: 1px solid var(--line);
     background: none; font: inherit; color: inherit; cursor: pointer;
     animation: chipIn .4s var(--out) both; animation-delay: calc(var(--i, 0) * 40ms);
-    transition: background .16s, border-color .16s, transform .16s var(--out);
+    transition: background .16s, transform .16s var(--out);
   }}
-  .qi:hover {{ background: var(--glass-2); border-color: var(--line); transform: translateX(2px); }}
-  .qi .bar {{ flex: none; width: 3px; align-self: stretch; border-radius: 3px; background: hsl(var(--hue) 62% 56%); }}
+  .qi:hover {{ background: var(--glass-2); transform: translateX(2px); }}
+  .qi .thumb {{
+    flex: none; width: 3.2rem; height: 3.2rem; display: grid; place-items: center;
+    border: 1px solid var(--line-2); background: var(--bg-2); overflow: hidden;
+    font-family: var(--font-serif); font-weight: 800; font-size: .95rem; color: var(--sub);
+  }}
+  .qi .thumb img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
   .qi .t {{ font-size: .81rem; font-weight: 640; line-height: 1.34; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }}
-  .qi .s {{ font-size: .7rem; color: var(--sub); margin-top: .12rem; }}
+  .qi .s {{ font-family: var(--font-sans); font-size: .64rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--sub); margin-bottom: .3rem; }}
   .qempty {{ color: var(--sub); font-size: .8rem; }}
 
   .toast {{
@@ -1275,28 +1316,20 @@ def render_html(articles: list) -> str:
      tablet/desktop width, fall back to the same short, side-by-side card
      layout whenever the viewport itself is short, regardless of width. */
   @media (min-width: 900px), (max-height: 480px) {{
-    /* Landscape cards: image beside the text instead of on top of it.
-       Portrait mobile keeps the tall layout defined above untouched --
-       these rules only apply from this breakpoint up. */
-    .stage {{ height: clamp(300px, 46vh, 380px); }}
+    /* Wider editorial card, still a single text-first column with the lead
+       image as a band near the bottom -- not a side-by-side layout. */
+    .stage {{ height: clamp(420px, 62vh, 620px); }}
     .card {{ width: min(94%, 780px); }}
-    .card:not(.end) {{ flex-direction: row; }}   /* .end stays a centered vertical stack */
-    .media {{ flex: 0 0 40%; height: 100%; }}
-    .media .scrim {{ display: none; }}   /* nothing overlays the image in this layout */
-    .card:not(.end) h2 {{ -webkit-line-clamp: 2; }}
-    .snip {{ -webkit-line-clamp: 2; }}
-    .body {{ padding: 1.3rem 1.5rem; }}
+    .body {{ padding: 1.9rem 2.2rem 1.6rem; }}
+    .card h2 {{ font-size: clamp(1.9rem, 2.6vw, 2.6rem); line-height: 1.08; }}
+    .snip {{ font-size: 1.05rem; line-height: 1.55; }}
+    .media {{ height: 34%; }}
 
-    /* The prev/next buttons were sized for the tall mobile card; next to the
-       shorter landscape card they read as oversized, with too much dead
-       space around them. */
-    .ctrls {{ gap: .3rem; margin-top: .9rem; }}
-    .rnd {{ min-width: 3.2rem; padding: .45rem .4rem; }}
-    .rnd svg {{ width: .95rem; height: .95rem; }}
-    .count {{ margin-bottom: .45rem; }}
+    .ctrls {{ gap: .5rem; margin-top: 1rem; }}
   }}
 
   @media (min-width: 900px) {{
+    .bar-right {{ display: flex; }}
     .layout {{ grid-template-columns: minmax(0, 1fr) 296px; gap: 2.25rem; }}
     .queue {{ display: block; position: sticky; top: 8.5rem; }}
   }}
@@ -1323,16 +1356,16 @@ def render_html(articles: list) -> str:
         </svg>
       </button>
       <div class="brand">
-        <svg class="brand-mark" viewBox="0 0 100 100" aria-hidden="true">
-          <rect x="0" y="0" width="100" height="100" rx="22" fill="var(--bg)"/>
-          <rect x="10" y="14" width="46" height="46" rx="10" fill="none" stroke="var(--ink)" stroke-width="5"/>
-          <text x="33" y="45" text-anchor="middle" dominant-baseline="central" font-family="Archivo, sans-serif" font-weight="800" font-size="30" fill="var(--ink)">N</text>
-          <rect x="64" y="12" width="28" height="5" rx="2.5" fill="var(--ink)"/>
-          <rect x="64" y="25.5" width="23" height="5" rx="2.5" fill="#c6b28c"/>
-          <rect x="64" y="39" width="17" height="5" rx="2.5" fill="#c6b28c"/>
-          <rect x="10" y="67" width="46" height="29" rx="5" fill="#c6b28c" class="brand-pulse"/>
-        </svg>
+        <img class="brand-mark" src="icon-192.png" alt="" width="192" height="192">
         NewsFlick
+      </div>
+      <div class="bar-right">
+        <span class="build-stamp" id="build-stamp"></span>
+        <div class="theme-switch header-switch" id="theme-switch-header" role="group" aria-label="Theme">
+          <button class="theme-opt" data-theme="light">Light</button>
+          <button class="theme-opt" data-theme="dark">Dark</button>
+          <button class="theme-opt" data-theme="auto">Auto</button>
+        </div>
       </div>
     </div>
     <div class="rail"><i id="rail"></i></div>
@@ -1386,41 +1419,37 @@ def render_html(articles: list) -> str:
       <p class="drawer-footnote">Leaning shown on cards is from public ratings where available, hand-curated
         (not an API) -- most sources aren't independently rated.</p>
       <p class="drawer-fresh" id="fresh"></p>
+      <button class="drawer-show" id="drawer-show" type="button">Show <span id="drawer-show-count"></span> stories</button>
+      <p class="drawer-keys">Keyboard: &larr; back &middot; &rarr; next &middot; S save</p>
     </div>
   </aside>
 
   <div class="layout">
     <div>
+      <div class="deck-status" id="deck-status"></div>
       <main class="stage" id="stage" aria-live="polite"></main>
       <div class="count" id="count"></div>
       <nav class="ctrls" aria-label="Article controls">
         <button class="rnd" id="prev" title="Previous (left arrow)" aria-label="Previous story">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
-          <span class="rnd-label">Back</span>
+          <span class="rnd-label">&larr; Back</span>
         </button>
         <button class="rnd" id="ctrl-save" aria-label="Save for later" aria-pressed="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.2l2.85 5.78 6.38.93-4.61 4.5 1.09 6.36L12 17.76l-5.71 3.01 1.09-6.36-4.61-4.5 6.38-.93L12 3.2z"/></svg>
           <span class="rnd-label" id="ctrl-save-label">Save</span>
         </button>
         <button class="rnd" id="ctrl-share" aria-label="Share story">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/></svg>
           <span class="rnd-label">Share</span>
         </button>
         <button class="rnd" id="next" title="Next (right arrow)" aria-label="Next story">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
-          <span class="rnd-label">Next</span>
+          <span class="rnd-label">Next &rarr;</span>
         </button>
         <span class="ctrls-sep" aria-hidden="true"></span>
         <button class="rnd solid" id="refresh" aria-label="Jump to an unread story">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>
-          </svg>
-          <span class="rnd-label">Unread</span>
+          <span class="rnd-label">&#8635; Something unread</span>
         </button>
       </nav>
     </div>
     <aside class="queue" id="queue">
-      <h3>Up next</h3>
+      <div class="queue-head"><h3>Up next</h3><span>in the pile</span></div>
       <div id="qlist"></div>
     </aside>
   </div>
@@ -1475,6 +1504,8 @@ def render_html(articles: list) -> str:
     var countEl = document.getElementById('count');
     var railEl = document.getElementById('rail');
     var freshEl = document.getElementById('fresh');
+    var buildStampEl = document.getElementById('build-stamp');
+    var deckStatusEl = document.getElementById('deck-status');
     var toastEl = document.getElementById('toast');
     var prevBtn = document.getElementById('prev');
     var nextBtn = document.getElementById('next');
@@ -1610,9 +1641,10 @@ def render_html(articles: list) -> str:
     // goes through esc(). Two different escaping rules on two adjacent
     // params is exactly the kind of thing that reads as a mistake to the
     // next person touching this; it isn't, but say so.
-    function chip(labelHtml, attr, val, on, hue, i) {{
+    function chip(labelHtml, attr, val, on, hue, i, disabled) {{
       return '<button class="chip' + (on ? ' on' : '') + '" ' + attr + '="' + esc(val) + '"'
         + ' style="--i:' + i + (hue === undefined ? '' : ';--hue:' + hue) + '"'
+        + (disabled ? ' disabled' : '')
         + ' aria-pressed="' + (on ? 'true' : 'false') + '">' + labelHtml + '</button>';
     }}
 
@@ -1640,6 +1672,7 @@ def render_html(articles: list) -> str:
       persistInterests();
       index = 0;
       renderTopics();
+      renderSources();
       render();
     }}
 
@@ -1677,14 +1710,51 @@ def render_html(articles: list) -> str:
         }}
         return null;
       }}
+      // Browsing a specific region ("World" filter): once it's exhausted,
+      // cycle to the next region that actually has something left under
+      // the current topic/source filters, instead of just reporting
+      // "you've seen everything" with nowhere to go.
+      if (regionFilter !== 'all') {{
+        var curR = regionFilter;
+        var startR = regions.indexOf(curR);
+        for (var k = 1; k <= regions.length; k++) {{
+          var candR = regions[(startR + k) % regions.length];
+          if (candR === curR) break;
+          var countR = all.filter(function (a) {{
+            if (a.region !== candR) return false;
+            if (interests.size && !interests.has(a.topic)) return false;
+            if (sourceFilter === '__saved__') return saved.has(a.id);
+            return sourceFilter === 'all' || a.source === sourceFilter;
+          }}).length;
+          if (countR > 0) return {{ kind: 'region', value: candR, count: countR, doneLabel: curR }};
+        }}
+        return null;
+      }}
       return null;
     }}
 
+    // A source with zero articles under the current topic/region filters
+    // would just open onto "Nothing matches those filters" -- grey it out
+    // instead of leaving a live-looking button that leads nowhere. Sorted
+    // to the back so the pickable sources stay together up front.
     function renderSources() {{
+      function matchesOther(a) {{
+        if (interests.size && !interests.has(a.topic)) return false;
+        if (regionFilter !== 'all' && a.region !== regionFilter) return false;
+        return true;
+      }}
+      var savedCount = all.filter(function (a) {{ return saved.has(a.id) && matchesOther(a); }}).length;
+      var counts = {{}};
+      sources.forEach(function (s) {{ counts[s] = 0; }});
+      all.forEach(function (a) {{ if (matchesOther(a) && a.source in counts) counts[a.source]++; }});
+      var ordered = sources.slice().sort(function (a, b) {{
+        var da = counts[a] === 0, db = counts[b] === 0;
+        return da === db ? 0 : da ? 1 : -1;
+      }});
       var h = chip('All', 'data-f', 'all', sourceFilter === 'all', undefined, 0);
-      h += chip(ICON.star, 'data-f', '__saved__', sourceFilter === '__saved__', undefined, 1);
-      sources.forEach(function (s, i) {{
-        h += chip(esc(s), 'data-f', s, sourceFilter === s, hueOf[s], i + 2);
+      h += chip(ICON.star, 'data-f', '__saved__', sourceFilter === '__saved__', undefined, 1, savedCount === 0 && sourceFilter !== '__saved__');
+      ordered.forEach(function (s, i) {{
+        h += chip(esc(s), 'data-f', s, sourceFilter === s, hueOf[s], i + 2, counts[s] === 0 && sourceFilter !== s);
       }});
       sourcesEl.innerHTML = h;
       // The star glyph inside a chip must not swallow the click target.
@@ -1711,9 +1781,11 @@ def render_html(articles: list) -> str:
       // img stop the browser's own "drag this image" / text-selection
       // gesture from grabbing a pointerdown that started over the photo --
       // without it, starting a swipe on the image dragged/selected the
-      // picture instead of moving the card.
+      // picture instead of moving the card. Lives after the headline/summary
+      // now, matching the "lead image" placement in the mockup -- text reads
+      // first, the photo is a footnote to it, not a masthead.
       var media = img
-        ? '<div class="media"><img alt="" draggable="false" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(img) + '"><div class="scrim"></div></div>'
+        ? '<div class="media"><img alt="" draggable="false" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(img) + '"><div class="scrim"></div><span class="media-cap">lead image &middot; from feed</span></div>'
         : '';
       var also = (a.alsoFrom && a.alsoFrom.length)
         ? '<div class="also">also on <b>' + a.alsoFrom.map(esc).join('</b>, <b>') + '</b></div>'
@@ -1728,22 +1800,30 @@ def render_html(articles: list) -> str:
       // "General" means the classifier found nothing, not that "General"
       // is itself a real topic -- showing a pill that says nothing on
       // roughly half the deck trained people to ignore all the pills.
+      // The four registration-mark dots after it are a purely decorative
+      // print-masthead flourish (K/Y/M/C), same on every card.
       var topicPill = (a.topic && a.topic !== 'General')
         ? '<span class="pill">' + esc(a.topic) + '</span>'
+          + '<span class="regmarks" aria-hidden="true"><i></i><i></i><i></i><i></i></span>'
         : '';
+      var region = a.region ? '<span class="region-tag">' + esc(a.region) + '</span>' : '';
       return ''
-        + media
         + '<div class="body">'
         +   '<div class="metarow">'
         +     '<span class="src"><span class="ava">' + esc(a.initials) + '</span>' + esc(a.source) + '</span>'
+        +     '<time>' + esc(relTime(a.published)) + '</time>'
+        +   '</div>'
+        +   '<div class="topicrow">'
         +     topicPill
         +     lean
+        +     region
         +   '</div>'
         +   '<h2>' + esc(a.title) + '</h2>'
-        +   also
         +   '<p class="snip">' + esc(a.snippet) + '</p>'
-        +   '<div class="foot"><time>' + esc(relTime(a.published)) + '</time>'
-        +     (link ? '<a class="read" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">Read' + ICON.out + '</a>' : '')
+        +   media
+        +   also
+        +   '<div class="foot">'
+        +     (link ? '<a class="read" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">Read full article' + ICON.out + '</a>' : '')
         +   '</div>'
         + '</div>';
     }}
@@ -1781,6 +1861,9 @@ def render_html(articles: list) -> str:
       ctrlSaveBtn.classList.toggle('on', curSaved);
       ctrlSaveBtn.setAttribute('aria-pressed', curSaved ? 'true' : 'false');
       ctrlSaveLabelEl.textContent = curSaved ? 'Saved' : 'Save';
+      deckStatusEl.innerHTML = (list.length && index < list.length)
+        ? 'Story ' + (index + 1) + ' of ' + list.length + '<span class="sep"></span>drag either way = next'
+        : '';
     }}
 
     // Full rebuild: destroys and recreates the whole stack. Correct after
@@ -1887,9 +1970,14 @@ def render_html(articles: list) -> str:
         return;
       }}
       qlist.innerHTML = rest.map(function (a, i) {{
+        var img = a.image ? safeUrl(a.image) : '';
+        var thumb = img
+          ? '<img alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(img) + '">'
+          : esc(a.initials);
         return '<button class="qi" data-jump="' + esc(a.id) + '" style="--hue:' + a.hue + ';--i:' + i + '">'
-          + '<span class="bar"></span><span><span class="t">' + esc(a.title) + '</span>'
-          + '<span class="s">' + esc(a.source) + ' &middot; ' + esc(relTime(a.published)) + '</span></span></button>';
+          + '<span class="thumb">' + thumb + '</span>'
+          + '<span><span class="s">' + esc(a.source) + ' &middot; ' + esc(relTime(a.published)) + '</span>'
+          + '<span class="t">' + esc(a.title) + '</span></span></button>';
       }}).join('');
     }}
 
@@ -2245,6 +2333,8 @@ def render_html(articles: list) -> str:
         index = 0;
         if (btn.dataset.kind === 'topic') {{
           interests.clear(); interests.add(btn.dataset.value); persistInterests(); renderTopics();
+        }} else if (btn.dataset.kind === 'region') {{
+          regionFilter = btn.dataset.value; renderRegions();
         }} else {{
           sourceFilter = btn.dataset.value; renderSources();
         }}
@@ -2288,6 +2378,7 @@ def render_html(articles: list) -> str:
       regionFilter = btn.dataset.r;
       index = 0;
       renderRegions();
+      renderSources();
       render();
     }});
 
@@ -2349,6 +2440,9 @@ def render_html(articles: list) -> str:
       var m = Math.floor(minsOld());
       if (isNaN(m)) {{ freshEl.textContent = ''; return; }}
       freshEl.textContent = 'Updated ' + (m < 1 ? 'just now' : m < 60 ? m + 'm ago' : Math.floor(m / 60) + 'h ago');
+      if (buildStampEl && !isNaN(built.getTime())) {{
+        buildStampEl.textContent = 'last build ' + built.toLocaleTimeString([], {{ hour: '2-digit', minute: '2-digit' }});
+      }}
     }}
     paintFresh();
     setInterval(paintFresh, 60000);
@@ -2375,6 +2469,20 @@ def render_html(articles: list) -> str:
         return;
       }}
 
+      // Nothing unseen left in this exact view -- rather than just saying
+      // so, offer the same "next section" a filtered dead-end already
+      // offers on the end-of-queue card (topic/source/region cycling).
+      var next = nextSectionSuggestion();
+      if (next) {{
+        index = 0;
+        if (next.kind === 'topic') {{ interests.clear(); interests.add(next.value); persistInterests(); renderTopics(); }}
+        else if (next.kind === 'region') {{ regionFilter = next.value; renderRegions(); }}
+        else {{ sourceFilter = next.value; renderSources(); }}
+        render();
+        toast('Continuing in ' + next.value);
+        return;
+      }}
+
       var m = minsOld();
       if (!isNaN(m) && m < COOLDOWN_MIN) {{
         toast('You\\'ve seen everything in this view');
@@ -2392,24 +2500,26 @@ def render_html(articles: list) -> str:
        query; Light/Dark set data-theme, which the CSS overrides above key
        off with higher specificity than that media query) ---------- */
     var THEME_KEY = 'newsdigest:theme';
-    var themeSwitch = document.getElementById('theme-switch');
+    var themeSwitches = document.querySelectorAll('.theme-switch');
     function applyTheme(mode) {{
       if (mode === 'light' || mode === 'dark') document.documentElement.dataset.theme = mode;
       else delete document.documentElement.dataset.theme;
-      themeSwitch.querySelectorAll('.theme-opt').forEach(function (b) {{
-        b.classList.toggle('on', b.dataset.theme === mode);
+      themeSwitches.forEach(function (sw) {{
+        sw.querySelectorAll('.theme-opt').forEach(function (b) {{
+          b.classList.toggle('on', b.dataset.theme === mode);
+        }});
       }});
     }}
     var savedTheme = 'auto';
     try {{ savedTheme = localStorage.getItem(THEME_KEY) || 'auto'; }} catch (e) {{}}
     applyTheme(savedTheme);
-    themeSwitch.addEventListener('click', function (e) {{
+    themeSwitches.forEach(function (sw) {{ sw.addEventListener('click', function (e) {{
       var btn = e.target.closest('.theme-opt');
       if (!btn) return;
       var mode = btn.dataset.theme;
       applyTheme(mode);
       try {{ localStorage.setItem(THEME_KEY, mode); }} catch (e2) {{}}
-    }});
+    }}); }});
 
     function setDrawer(open) {{
       drawerEl.classList.toggle('open', open);
@@ -2417,11 +2527,15 @@ def render_html(articles: list) -> str:
       menuBtn.classList.toggle('open', open);
       menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
     }}
+    var drawerShowCountEl = document.getElementById('drawer-show-count');
     menuBtn.addEventListener('click', function () {{
-      setDrawer(!drawerEl.classList.contains('open'));
+      var open = !drawerEl.classList.contains('open');
+      if (open) drawerShowCountEl.textContent = filtered().length;
+      setDrawer(open);
     }});
     scrimEl.addEventListener('click', function () {{ setDrawer(false); }});
     document.getElementById('drawer-close').addEventListener('click', function () {{ setDrawer(false); }});
+    document.getElementById('drawer-show').addEventListener('click', function () {{ setDrawer(false); }});
     document.addEventListener('keydown', function (e) {{
       if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false);
     }});
