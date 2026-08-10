@@ -813,8 +813,7 @@ def render_html(articles: list) -> str:
     font-family: var(--font-serif); font-size: 1.4rem; font-weight: 800; letter-spacing: -.02em;
   }}
   .brand-mark {{ width: 1.5rem; height: 1.5rem; flex: none; }}
-  .bar-right {{ display: none; align-items: center; gap: 1.1rem; margin-left: auto; }}
-  .build-stamp {{ font-family: var(--font-mono); font-size: .68rem; color: var(--sub); white-space: nowrap; }}
+  .bar-right {{ display: none; align-items: center; margin-left: auto; }}
   .theme-switch.header-switch {{ margin: 0; }}
   .ghost {{
     display: inline-flex; align-items: center; gap: .34rem;
@@ -1117,6 +1116,8 @@ def render_html(articles: list) -> str:
   .regmarks i:nth-child(2) {{ background: #ffd400; }}
   .regmarks i:nth-child(3) {{ background: #ec1c5c; }}
   .regmarks i:nth-child(4) {{ background: #00aeef; }}
+  .regmarks-lg {{ gap: .5em; margin-bottom: 1.6rem; }}
+  .regmarks-lg i {{ width: 11px; height: 11px; }}
   /* Political-leaning pill. Self-curated (source_bias.yaml), not from an
      API -- see the drawer footer disclaimer. A source with no entry gets no
      pill at all, so "unrated" never gets mistaken for a "Center" judgment.
@@ -1360,7 +1361,6 @@ def render_html(articles: list) -> str:
         NewsFlick
       </div>
       <div class="bar-right">
-        <span class="build-stamp" id="build-stamp"></span>
         <div class="theme-switch header-switch" id="theme-switch-header" role="group" aria-label="Theme">
           <button class="theme-opt" data-theme="light">Light</button>
           <button class="theme-opt" data-theme="dark">Dark</button>
@@ -1504,7 +1504,6 @@ def render_html(articles: list) -> str:
     var countEl = document.getElementById('count');
     var railEl = document.getElementById('rail');
     var freshEl = document.getElementById('fresh');
-    var buildStampEl = document.getElementById('build-stamp');
     var deckStatusEl = document.getElementById('deck-status');
     var toastEl = document.getElementById('toast');
     var prevBtn = document.getElementById('prev');
@@ -1887,17 +1886,21 @@ def render_html(articles: list) -> str:
         var end = document.createElement('article');
         end.className = 'card end';
         var next = list.length ? nextSectionSuggestion() : null;
+        // The tall centered end-card leaves a lot of dead space above the
+        // checkmark -- the print-registration dots fill it instead of
+        // leaving it blank.
+        var marks = '<span class="regmarks regmarks-lg" aria-hidden="true"><i></i><i></i><i></i><i></i></span>';
         if (next) {{
-          end.innerHTML = '<div class="big">&#10003;</div><h2>' + esc(next.doneLabel) + ' done</h2>'
+          end.innerHTML = marks + '<div class="big">&#10003;</div><h2>' + esc(next.doneLabel) + ' done</h2>'
             + '<p>More in ' + esc(next.value) + '.</p>'
             + '<button class="onb-go" data-act="next-section" data-kind="' + next.kind + '" data-value="' + esc(next.value) + '">'
             + 'Continue to ' + esc(next.value) + '</button>'
             + '<button class="ghost" data-act="restart" style="margin-top:.6rem">Start over instead</button>';
         }} else {{
           end.innerHTML = list.length
-            ? '<div class="big">&#10003;</div><h2>All caught up</h2><p>You have been through every story in this view.</p>'
+            ? marks + '<div class="big">&#10003;</div><h2>All caught up</h2><p>You have been through every story in this view.</p>'
               + '<button class="ghost" data-act="restart">Start over</button>'
-            : '<div class="big">&#9788;</div><h2>Nothing here</h2><p>Try a different topic or source.</p>';
+            : marks + '<div class="big">&#9788;</div><h2>Nothing here</h2><p>Try a different topic or source.</p>';
         }}
         stage.appendChild(end);
         renderQueue();
@@ -2440,9 +2443,6 @@ def render_html(articles: list) -> str:
       var m = Math.floor(minsOld());
       if (isNaN(m)) {{ freshEl.textContent = ''; return; }}
       freshEl.textContent = 'Updated ' + (m < 1 ? 'just now' : m < 60 ? m + 'm ago' : Math.floor(m / 60) + 'h ago');
-      if (buildStampEl && !isNaN(built.getTime())) {{
-        buildStampEl.textContent = 'last build ' + built.toLocaleTimeString([], {{ hour: '2-digit', minute: '2-digit' }});
-      }}
     }}
     paintFresh();
     setInterval(paintFresh, 60000);

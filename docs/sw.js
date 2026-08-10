@@ -3,7 +3,11 @@
 // so this just rides along unchanged.
 "use strict";
 
-var CACHE = "newsdigest-shell-v1";
+// Bumped to v2 when the app icons were swapped for real logo art -- installs
+// that already precached the old icon-192/icon-512 under v1 would otherwise
+// keep serving them forever (cache-first for non-navigate requests). Bump
+// this again any time icon-192.png/icon-512.png change.
+var CACHE = "newsdigest-shell-v2";
 var SHELL = ["./", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", function (event) {
