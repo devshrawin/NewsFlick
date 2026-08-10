@@ -1,6 +1,6 @@
 {
-  "name": "newsdigest",
-  "short_name": "newsdigest",
+  "name": "NewsFlick",
+  "short_name": "NewsFlick",
   "description": "A swipeable digest of Indian news, rebuilt every hour.",
   "start_url": ".",
   "scope": ".",

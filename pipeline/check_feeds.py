@@ -41,7 +41,7 @@ REPORT_JSON = ROOT / "docs" / "feed_check.json"
 REPORT_HTML = ROOT / "docs" / "index.html"
 
 # Polite, identifiable UA tried first.
-UA_BOT = "newsdigest/0.1 (personal research; +https://github.com/devshrawin/newsdigest)"
+UA_BOT = "NewsFlick/0.1 (personal research; +https://github.com/devshrawin/newsdigest)"
 # Several Indian publishers 403 anything that isn't a browser. Retried with this.
 UA_BROWSER = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -656,14 +656,15 @@ def render_html(articles: list) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="A swipeable digest of Indian news, rebuilt every hour.">
-<title>newsdigest</title>
+<title>NewsFlick</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0e0f14">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="NewsFlick">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;0,800;1,400&family=Archivo:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* Dark is the default look regardless of system preference -- only an
      explicit `prefers-color-scheme: light` gets the light palette below.
@@ -671,28 +672,25 @@ def render_html(articles: list) -> str:
      scrollbars to render dark instead of fighting the page. */
   :root {{
     color-scheme: dark;
-    --bg: oklch(0.15 0.012 275);
-    --bg-2: oklch(0.19 0.018 285);
-    --glass: oklch(0.28 0.02 280 / 0.34);
-    --glass-2: oklch(0.32 0.02 280 / 0.22);
-    --ink: oklch(0.96 0.008 280);
-    --sub: oklch(0.78 0.014 280);
-    --line: oklch(0.85 0.03 280 / 0.08);
-    --line-2: oklch(0.85 0.03 280 / 0.14);
-    --accent: oklch(0.72 0.15 278);
-    --accent-2: oklch(0.72 0.15 278 / 0.16);
-    --gold: oklch(0.78 0.15 85);
-    --shadow-sm: 0 6px 16px -10px oklch(0.08 0.02 280 / 0.6);
-    --shadow-md: 0 14px 32px -14px oklch(0.08 0.02 280 / 0.68);
-    --shadow-xl: 0 24px 60px -12px oklch(0.08 0.02 280 / 0.75);
-    --scrim: oklch(0.1 0.02 280 / 0.5);
-    --radius: 22px;
-    /* User-controlled card size multiplier (drawer slider). 1 = default. Not
-       theme-dependent, so it lives here rather than in the theme blocks. */
-    --card-scale: 1;
-    --font-serif: "Newsreader", Georgia, serif;
-    --font-sans: "IBM Plex Sans", system-ui, sans-serif;
-    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+    --bg: #141310;
+    --bg-2: #1d1b16;
+    --glass: #1d1b16;
+    --glass-2: #2a2721;
+    --ink: #f0ece0;
+    --sub: #b3ad9c;
+    --line: #33302a;
+    --line-2: #474338;
+    --accent: #c2542f;
+    --accent-2: rgba(194, 84, 47, .2);
+    --gold: #c2542f;
+    --shadow-sm: 0 6px 16px -10px rgba(0, 0, 0, .55);
+    --shadow-md: 0 14px 32px -14px rgba(0, 0, 0, .65);
+    --shadow-xl: 0 24px 60px -12px rgba(0, 0, 0, .7);
+    --scrim: rgba(0, 0, 0, .6);
+    --radius: 3px;
+    --font-serif: "Spectral", Georgia, serif;
+    --font-sans: "Archivo", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
     /* Overshoot for anything that should feel physical; flat-out for the rest. */
     --spring: cubic-bezier(.34, 1.4, .64, 1);
     --out: cubic-bezier(.22, 1, .36, 1);
@@ -700,21 +698,21 @@ def render_html(articles: list) -> str:
   @media (prefers-color-scheme: light) {{
     :root {{
       color-scheme: light;
-      --bg: oklch(0.97 0.006 280);
-      --bg-2: oklch(0.93 0.012 285);
-      --glass: oklch(1 0 0 / 0.6);
-      --glass-2: oklch(1 0 0 / 0.42);
-      --ink: oklch(0.24 0.02 280);
-      --sub: oklch(0.46 0.02 280);
-      --line: oklch(0.35 0.03 280 / 0.08);
-      --line-2: oklch(0.35 0.03 280 / 0.14);
-      --accent: oklch(0.52 0.17 278);
-      --accent-2: oklch(0.52 0.17 278 / 0.12);
-      --gold: oklch(0.62 0.15 75);
-      --shadow-sm: 0 6px 16px -12px oklch(0.4 0.03 280 / 0.22);
-      --shadow-md: 0 14px 32px -18px oklch(0.4 0.03 280 / 0.26);
-      --shadow-xl: 0 24px 60px -18px oklch(0.4 0.03 280 / 0.28);
-      --scrim: oklch(0.1 0.02 280 / 0.4);
+      --bg: #f4f1e8;
+      --bg-2: #eae5d6;
+      --glass: #fbf9f3;
+      --glass-2: #eae5d6;
+      --ink: #17150f;
+      --sub: #5c574a;
+      --line: #d8d3c3;
+      --line-2: #c3bdaa;
+      --accent: #a33f22;
+      --accent-2: rgba(163, 63, 34, .12);
+      --gold: #a33f22;
+      --shadow-sm: 0 6px 16px -12px rgba(23, 21, 15, .16);
+      --shadow-md: 0 14px 32px -18px rgba(23, 21, 15, .2);
+      --shadow-xl: 0 24px 60px -18px rgba(23, 21, 15, .24);
+      --scrim: rgba(23, 21, 15, .45);
     }}
   }}
 
@@ -727,27 +725,27 @@ def render_html(articles: list) -> str:
      the "Auto" default. */
   :root[data-theme="dark"] {{
     color-scheme: dark;
-    --bg: oklch(0.15 0.012 275); --bg-2: oklch(0.19 0.018 285);
-    --glass: oklch(0.28 0.02 280 / 0.34); --glass-2: oklch(0.32 0.02 280 / 0.22);
-    --ink: oklch(0.96 0.008 280); --sub: oklch(0.78 0.014 280);
-    --line: oklch(0.85 0.03 280 / 0.08); --line-2: oklch(0.85 0.03 280 / 0.14);
-    --accent: oklch(0.72 0.15 278); --accent-2: oklch(0.72 0.15 278 / 0.16); --gold: oklch(0.78 0.15 85);
-    --shadow-sm: 0 6px 16px -10px oklch(0.08 0.02 280 / 0.6);
-    --shadow-md: 0 14px 32px -14px oklch(0.08 0.02 280 / 0.68);
-    --shadow-xl: 0 24px 60px -12px oklch(0.08 0.02 280 / 0.75);
-    --scrim: oklch(0.1 0.02 280 / 0.5);
+    --bg: #141310; --bg-2: #1d1b16;
+    --glass: #1d1b16; --glass-2: #2a2721;
+    --ink: #f0ece0; --sub: #b3ad9c;
+    --line: #33302a; --line-2: #474338;
+    --accent: #c2542f; --accent-2: rgba(194, 84, 47, .2); --gold: #c2542f;
+    --shadow-sm: 0 6px 16px -10px rgba(0, 0, 0, .55);
+    --shadow-md: 0 14px 32px -14px rgba(0, 0, 0, .65);
+    --shadow-xl: 0 24px 60px -12px rgba(0, 0, 0, .7);
+    --scrim: rgba(0, 0, 0, .6);
   }}
   :root[data-theme="light"] {{
     color-scheme: light;
-    --bg: oklch(0.97 0.006 280); --bg-2: oklch(0.93 0.012 285);
-    --glass: oklch(1 0 0 / 0.6); --glass-2: oklch(1 0 0 / 0.42);
-    --ink: oklch(0.24 0.02 280); --sub: oklch(0.46 0.02 280);
-    --line: oklch(0.35 0.03 280 / 0.08); --line-2: oklch(0.35 0.03 280 / 0.14);
-    --accent: oklch(0.52 0.17 278); --accent-2: oklch(0.52 0.17 278 / 0.12); --gold: oklch(0.62 0.15 75);
-    --shadow-sm: 0 6px 16px -12px oklch(0.4 0.03 280 / 0.22);
-    --shadow-md: 0 14px 32px -18px oklch(0.4 0.03 280 / 0.26);
-    --shadow-xl: 0 24px 60px -18px oklch(0.4 0.03 280 / 0.28);
-    --scrim: oklch(0.1 0.02 280 / 0.4);
+    --bg: #f4f1e8; --bg-2: #eae5d6;
+    --glass: #fbf9f3; --glass-2: #eae5d6;
+    --ink: #17150f; --sub: #5c574a;
+    --line: #d8d3c3; --line-2: #c3bdaa;
+    --accent: #a33f22; --accent-2: rgba(163, 63, 34, .12); --gold: #a33f22;
+    --shadow-sm: 0 6px 16px -12px rgba(23, 21, 15, .16);
+    --shadow-md: 0 14px 32px -18px rgba(23, 21, 15, .2);
+    --shadow-xl: 0 24px 60px -18px rgba(23, 21, 15, .24);
+    --scrim: rgba(23, 21, 15, .45);
   }}
 
   * {{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }}
@@ -783,10 +781,8 @@ def render_html(articles: list) -> str:
   /* ---- slim top bar: menu toggle + brand + freshness ---- */
   header {{
     position: sticky; top: 0; z-index: 20;
-    background: var(--glass);
-    backdrop-filter: saturate(1.6) blur(18px);
-    -webkit-backdrop-filter: saturate(1.6) blur(18px);
-    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+    border-bottom: 3px double var(--ink);
     /* viewport-fit=cover lets content draw under the notch/status bar, so
        the sticky header needs the safe-area inset added back in, not just
        the flat .7rem. */
@@ -800,7 +796,7 @@ def render_html(articles: list) -> str:
     flex: none; width: 2.3rem; height: 2.3rem; display: grid; place-items: center;
     border: 1px solid var(--line-2); background: var(--glass-2); color: var(--ink);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    border-radius: 12px; cursor: pointer;
+    border-radius: 0; cursor: pointer;
     transition: transform .18s var(--spring), border-color .18s, background .18s;
   }}
   .menu-btn svg {{ width: 1.05rem; height: 1.05rem; }}
@@ -812,7 +808,7 @@ def render_html(articles: list) -> str:
   .menu-btn.open .ln3 {{ transform: translateY(-6px) rotate(-45deg); }}
   .brand {{
     display: flex; align-items: center; gap: .5rem;
-    font-family: var(--font-serif); font-size: 1.32rem; font-weight: 500; letter-spacing: -.01em;
+    font-family: var(--font-serif); font-size: 1.4rem; font-weight: 800; letter-spacing: -.02em;
   }}
   .brand .dot {{
     width: .62rem; height: .62rem; border-radius: 50%;
@@ -824,14 +820,12 @@ def render_html(articles: list) -> str:
     0%, 70%, 100% {{ box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 55%, transparent); }}
     35% {{ box-shadow: 0 0 0 .42rem transparent; }}
   }}
-  .head-right {{ display: flex; align-items: center; gap: .55rem; margin-left: auto; }}
-  .fresh {{ font-size: .74rem; color: var(--sub); font-variant-numeric: tabular-nums; white-space: nowrap; }}
   .ghost {{
     display: inline-flex; align-items: center; gap: .34rem;
     border: 1px solid var(--line-2); background: var(--glass-2); color: var(--sub);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    padding: .32rem .62rem; border-radius: 999px;
-    font: inherit; font-size: .74rem; font-weight: 650; cursor: pointer;
+    padding: .32rem .62rem; border-radius: 0;
+    font-family: var(--font-sans); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
     transition: transform .18s var(--spring), color .18s, border-color .18s, background .18s;
   }}
   .ghost:hover {{ color: var(--ink); border-color: var(--accent); }}
@@ -850,10 +844,10 @@ def render_html(articles: list) -> str:
   /* ---- chips, shared by the drawer's two sections and the onboarding form ---- */
   .chipwrap {{ display: flex; flex-wrap: wrap; gap: .4rem; }}
   .chip {{
-    border: 1px solid var(--line-2); background: var(--glass-2); color: var(--sub);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    padding: .32rem .68rem; border-radius: 999px;
-    font: inherit; font-size: .755rem; font-weight: 650; white-space: nowrap; cursor: pointer;
+    border: 1px solid var(--line-2); background: none; color: var(--sub);
+    padding: .38rem .6rem; border-radius: 0;
+    font-family: var(--font-sans); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    white-space: nowrap; cursor: pointer;
     transition: transform .2s var(--spring), background .2s var(--out), color .2s, border-color .2s;
     animation: chipIn .4s var(--out) both;
     animation-delay: calc(var(--i, 0) * 22ms);
@@ -862,13 +856,10 @@ def render_html(articles: list) -> str:
     from {{ opacity: 0; transform: translateY(6px) scale(.94); }}
     to   {{ opacity: 1; transform: none; }}
   }}
-  .chip:hover {{ color: var(--ink); border-color: var(--line-2); }}
+  .chip:hover {{ color: var(--ink); border-color: var(--ink); }}
   .chip:active {{ transform: scale(.94); }}
   .chip.on {{
-    color: var(--ink); border-color: var(--accent); background: var(--accent-2);
-  }}
-  .chip[data-f="__saved__"].on {{
-    border-color: var(--gold); background: color-mix(in oklab, var(--gold) 16%, transparent);
+    color: var(--bg); border-color: var(--ink); background: var(--ink);
   }}
 
   /* ---- collapsible left drawer (topics + sources moved out of the top bar) ---- */
@@ -888,11 +879,11 @@ def render_html(articles: list) -> str:
   .drawer.open {{ transform: translateX(0); }}
   .drawer-head {{
     flex: none; display: flex; align-items: center; justify-content: space-between;
-    padding: 1rem 1.1rem; border-bottom: 1px solid var(--line);
+    padding: 1rem 1.1rem; border-bottom: 3px double var(--ink);
   }}
-  .drawer-head strong {{ font-family: var(--font-serif); font-size: 1.35rem; font-weight: 500; letter-spacing: -.01em; }}
+  .drawer-head strong {{ font-family: var(--font-serif); font-size: 1.4rem; font-weight: 800; letter-spacing: -.02em; }}
   .drawer-close {{
-    width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: 10px;
+    width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: 0;
     border: 1px solid transparent; background: none; color: var(--sub); cursor: pointer;
   }}
   .drawer-close:hover {{ color: var(--ink); background: var(--bg-2); }}
@@ -922,35 +913,18 @@ def render_html(articles: list) -> str:
   .section.collapsed .section-panel > div {{ opacity: 0; }}
   .section-hint {{ font-size: .72rem; color: var(--sub); margin: 0 0 .55rem; }}
   .theme-switch {{
-    display: flex; gap: .3rem; margin: 0 1.1rem 1rem; padding: .25rem;
-    background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px;
+    display: flex; gap: 0; margin: 0 1.1rem 1rem; padding: 0;
+    background: none; border: 1px solid var(--line-2); border-radius: 0;
   }}
   .theme-opt {{
-    flex: 1; border: none; background: none; color: var(--sub); cursor: pointer;
-    font: inherit; font-size: .78rem; font-weight: 650; padding: .4rem 0; border-radius: 9px;
+    flex: 1; border: none; border-right: 1px solid var(--line-2); background: none; color: var(--sub); cursor: pointer;
+    font-family: var(--font-sans); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    padding: .5rem 0; border-radius: 0;
     transition: background .18s var(--out), color .18s;
   }}
-  .theme-opt.on {{ background: var(--glass); color: var(--ink); box-shadow: var(--shadow-sm); }}
+  .theme-opt:last-child {{ border-right: 0; }}
+  .theme-opt.on {{ background: var(--ink); color: var(--bg); box-shadow: none; }}
 
-  /* Card-size slider. Scales .stage height and .card width together (one
-     knob, not two) so the aspect ratio can't be broken into a stretched
-     image or an overflowing card -- the exact "looking odd" this exists to
-     prevent. Session-only: resets to 100% on reload, no reset button needed. */
-  .size-row {{
-    display: flex; align-items: center; gap: .6rem;
-    max-width: 260px; margin: .9rem auto 0;
-  }}
-  .size-row .size-lbl {{
-    font-family: var(--font-mono); font-size: .68rem; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--sub);
-  }}
-  .size-row input[type="range"] {{
-    flex: 1; accent-color: var(--accent); height: 1.2rem;
-  }}
-  .size-row .size-val {{
-    font-family: var(--font-mono); font-size: .74rem; color: var(--sub);
-    font-variant-numeric: tabular-nums; width: 2.8rem; text-align: right;
-  }}
   .drawer-footnote {{
     font-size: .7rem; color: var(--sub); opacity: .75; line-height: 1.4;
     padding: .9rem 1.1rem 0; margin: .3rem 0 0; border-top: 1px solid var(--line);
@@ -988,7 +962,7 @@ def render_html(articles: list) -> str:
     background: var(--line-2); margin: 0 auto 1.4rem;
   }}
   .onb-scrim.show .onb {{ transform: translateY(0); }}
-  .onb h2 {{ margin: 0 0 .3rem; font-family: var(--font-serif); font-weight: 500; font-size: 1.5rem; letter-spacing: -.02em; }}
+  .onb h2 {{ margin: 0 0 .3rem; font-family: var(--font-serif); font-weight: 800; font-size: 1.6rem; letter-spacing: -.02em; }}
   .onb p {{ margin: 0 0 1.1rem; color: var(--sub); font-size: .86rem; }}
   .onb .chipwrap {{ margin-bottom: 1.3rem; }}
   .onb .chip {{ font-size: .82rem; padding: .42rem .8rem; }}
@@ -999,24 +973,24 @@ def render_html(articles: list) -> str:
   }}
   .onb-skip:hover {{ color: var(--ink); text-decoration: underline; }}
   .onb-go {{
-    border: none; border-radius: 999px; padding: .68rem 1.35rem; cursor: pointer;
-    font: inherit; font-size: .88rem; font-weight: 700; color: #fff;
-    background: linear-gradient(135deg, var(--accent), var(--accent-2));
-    box-shadow: 0 4px 16px -6px color-mix(in oklab, var(--accent) 60%, transparent);
+    border: none; border-radius: 0; padding: .68rem 1.35rem; cursor: pointer;
+    font-family: var(--font-sans); font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--bg);
+    background: var(--ink);
+    box-shadow: none;
     transition: transform .18s var(--spring);
   }}
   .onb-go:active {{ transform: scale(.96); }}
 
   @media (min-width: 640px) {{
     .onb-scrim {{ align-items: center; }}
-    .onb {{ border-radius: 26px; }}
+    .onb {{ border-radius: 0; }}
   }}
 
   /* ---- "add to home screen" nudge (iOS Safari only -- see boot JS) ---- */
   .onb.a2hs {{ position: relative; }}
   .a2hs-close {{
     position: absolute; top: 1rem; right: 1rem; width: 2rem; height: 2rem;
-    border: none; background: var(--glass-2); border-radius: 50%; color: var(--sub);
+    border: none; background: var(--glass-2); border-radius: 0; color: var(--sub);
     display: grid; place-items: center; cursor: pointer;
   }}
   .a2hs-close svg {{ width: .85rem; height: .85rem; }}
@@ -1038,17 +1012,16 @@ def render_html(articles: list) -> str:
     /* Leaves clear room below the card for .ctrls -- this used to be tall
        enough that the card's own drop shadow visually ran into the prev/next
        buttons on short viewports. */
-    height: calc(clamp(380px, 54vh, 500px) * var(--card-scale));
+    height: clamp(380px, 54vh, 500px);
     margin-bottom: .4rem;
     perspective: 1400px;
   }}
 
   .card {{
     position: absolute; inset: 0; margin: auto;
-    /* min(...,100%) caps growth at the column's own width -- otherwise a
-       large --card-scale multiplies past the container and the card
-       overlaps whatever sits beside .stage (the Up Next queue on desktop). */
-    width: min(calc(min(94%, 400px) * var(--card-scale)), 100%); height: 100%;
+    /* min(...,100%) caps growth at the column's own width so the card can
+       never overlap whatever sits beside .stage (the Up Next queue on desktop). */
+    width: min(94%, 400px); height: 100%;
     display: flex; flex-direction: column; overflow: hidden;
     background: var(--glass); border: 1px solid var(--line);
     backdrop-filter: blur(26px) saturate(1.6); -webkit-backdrop-filter: blur(26px) saturate(1.6);
@@ -1100,17 +1073,16 @@ def render_html(articles: list) -> str:
     font-size: .82rem; font-weight: 500; letter-spacing: -.005em; color: var(--ink);
   }}
   .ava {{
-    width: 1.4rem; height: 1.4rem; border-radius: 50%; flex: none;
+    width: 1.4rem; height: 1.4rem; border-radius: 0; flex: none;
     display: grid; place-items: center;
-    font-size: .58rem; font-weight: 800; letter-spacing: -.02em;
-    color: #fff;
-    background: linear-gradient(135deg, hsl(var(--hue) 62% 56%), hsl(calc(var(--hue) + 30) 62% 46%));
+    font-family: var(--font-serif); font-size: .68rem; font-weight: 800; letter-spacing: -.02em;
+    color: var(--bg); background: var(--ink);
   }}
   .pill {{
     font-family: var(--font-mono);
-    font-size: .64rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase;
-    color: var(--sub); background: var(--bg-2);
-    border: 1px solid var(--line); padding: .16rem .46rem; border-radius: 999px;
+    font-size: .64rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--bg); background: var(--ink);
+    border: 1px solid var(--ink); padding: .2rem .5rem; border-radius: 0;
   }}
   /* Political-leaning pill. Self-curated (source_bias.yaml), not from an
      API -- see the drawer footer disclaimer. A source with no entry gets no
@@ -1121,12 +1093,16 @@ def render_html(articles: list) -> str:
      background tint either, for the same reason: this is a footnote, not
      a badge of honor or a warning label. */
   .pill.lean {{
-    background: none; border: 1px dashed var(--line-2); color: var(--sub);
-    text-transform: none; letter-spacing: .02em; font-weight: 400;
+    display: inline-flex; align-items: center; gap: .4rem;
+    background: none; border: 1px solid var(--line-2); color: var(--sub);
+    text-transform: none; letter-spacing: .08em; font-weight: 400;
+  }}
+  .pill.lean::before {{
+    content: ""; width: .32rem; height: .32rem; border-radius: 50%; background: var(--sub); flex: none;
   }}
   .card h2 {{
-    margin: 0 0 .4rem; font-family: var(--font-serif); font-size: 1.32rem; line-height: 1.24;
-    font-weight: 500; letter-spacing: -.015em;
+    margin: 0 0 .4rem; font-family: var(--font-serif); font-size: 1.4rem; line-height: 1.18;
+    font-weight: 800; letter-spacing: -.02em;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }}
   .also {{ font-size: .72rem; color: var(--sub); margin-bottom: .45rem; }}
@@ -1142,29 +1118,13 @@ def render_html(articles: list) -> str:
   .foot time {{ font-family: var(--font-mono); font-size: .7rem; color: var(--sub); font-variant-numeric: tabular-nums; }}
   .read {{
     display: inline-flex; align-items: center; gap: .35rem;
-    padding: .4rem .7rem; border-radius: 999px; border: 1px solid var(--line-2);
-    background: var(--glass-2);
-    font-size: .78rem; font-weight: 500; color: var(--ink); text-decoration: none;
-    transition: border-color .2s, background .2s;
+    font-family: var(--font-sans); font-weight: 700; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
+    border-bottom: 2px solid var(--accent); padding-bottom: .1rem;
+    color: var(--ink); text-decoration: none;
   }}
-  .read svg {{ width: .8rem; height: .8rem; }}
-  .read:hover {{ border-color: var(--accent); background: var(--accent-2); text-decoration: none; color: var(--ink); }}
+  .read svg {{ width: .75rem; height: .75rem; }}
+  .read:hover {{ color: var(--accent); text-decoration: none; }}
 
-  .tools {{ position: absolute; top: .7rem; right: .7rem; display: flex; gap: .35rem; z-index: 3; }}
-  .tool {{
-    width: 2.1rem; height: 2.1rem; border-radius: 50%; display: grid; place-items: center;
-    border: 1px solid transparent; cursor: pointer; color: var(--ink);
-    background: var(--glass-2);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    box-shadow: var(--shadow-sm);
-    transition: transform .2s var(--spring), color .2s, background .2s;
-  }}
-  .tool svg {{ width: 1rem; height: 1rem; }}
-  .tool:hover {{ transform: scale(1.08); }}
-  .tool:active {{ transform: scale(.88); }}
-  .tool.on {{ color: var(--gold); }}
-  .tool.on svg {{ fill: var(--gold); }}
-  .tool.pop {{ animation: pop .42s var(--spring); }}
   @keyframes pop {{
     0% {{ transform: scale(1); }}
     38% {{ transform: scale(1.34) rotate(9deg); }}
@@ -1179,29 +1139,42 @@ def render_html(articles: list) -> str:
   .end h2 {{ -webkit-line-clamp: unset; margin-bottom: .3rem; }}
   .end p {{ color: var(--sub); font-size: .88rem; margin: 0 0 1rem; }}
 
+  /* All five controls (Back/Save/Share/Next/Unread) are real, separate,
+     always-present buttons at every breakpoint -- distinct DOM per
+     control, never relabeled between breakpoints. Only the mobile media
+     query below changes the layout (row -> full-width 4-up grid, Next
+     hidden since forward stays drag-only on phones); it never changes
+     which control does what. */
   .ctrls {{
-    display: flex; align-items: center; justify-content: center; gap: .5rem;
-    margin: 1.8rem auto 0; position: relative; z-index: 2; width: fit-content;
-    padding: .45rem; border-radius: 999px; border: 1px solid var(--line-2);
-    background: var(--glass); backdrop-filter: blur(24px) saturate(1.6);
-    -webkit-backdrop-filter: blur(24px) saturate(1.6); box-shadow: var(--shadow-md);
+    display: flex; align-items: center; justify-content: center; gap: .4rem;
+    margin: 1.4rem auto 0; position: relative; z-index: 2; width: fit-content;
   }}
   .rnd {{
-    width: 3rem; height: 3rem; border-radius: 50%; display: grid; place-items: center;
-    border: 1px solid var(--line-2); background: var(--glass-2); color: var(--ink);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem;
+    min-width: 3.6rem; padding: .55rem .5rem;
+    border-radius: 0; border: 1px solid var(--line-2); background: var(--glass-2); color: var(--ink);
     cursor: pointer;
-    transition: transform .22s var(--spring), border-color .2s, color .2s;
+    transition: transform .18s var(--spring), border-color .2s, color .2s, background .2s;
   }}
-  .rnd svg {{ width: 1.15rem; height: 1.15rem; }}
-  .rnd:hover:not(:disabled) {{ transform: translateY(-2px) scale(1.05); border-color: var(--accent); color: var(--accent); }}
-  .rnd:active:not(:disabled) {{ transform: scale(.9); }}
+  .rnd svg {{ width: 1.05rem; height: 1.05rem; }}
+  .rnd-label {{
+    font-family: var(--font-sans); font-size: .62rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  }}
+  .rnd:hover:not(:disabled) {{ border-color: var(--accent); color: var(--accent); }}
+  .rnd:active:not(:disabled) {{ transform: scale(.94); }}
   .rnd:disabled {{ opacity: .35; cursor: default; }}
-  .count {{ text-align: center; color: var(--sub); font-size: .78rem; margin-top: .7rem; font-variant-numeric: tabular-nums; }}
+  .rnd.on {{ background: var(--ink); border-color: var(--ink); color: var(--bg); }}
+  .rnd.on:hover {{ color: var(--bg); border-color: var(--ink); }}
+  .rnd.pop {{ animation: pop .42s var(--spring); }}
+  .rnd.solid {{ background: var(--ink); border-color: var(--ink); color: var(--bg); }}
+  .rnd.solid:hover {{ color: var(--bg); border-color: var(--ink); opacity: .85; }}
+  .ctrls-sep {{ width: 1px; align-self: stretch; background: var(--line-2); margin: 0 .3rem; }}
+  .count {{ text-align: center; color: var(--sub); font-size: .78rem; margin-bottom: .7rem; font-variant-numeric: tabular-nums; }}
 
   .queue {{ display: none; }}
   .queue h3 {{
-    font-size: .68rem; font-weight: 750; letter-spacing: .09em; text-transform: uppercase;
-    color: var(--sub); margin: 0 0 .55rem;
+    font-family: var(--font-serif); font-size: 1.05rem; font-weight: 800;
+    color: var(--ink); margin: 0 0 .7rem; padding-bottom: .55rem; border-bottom: 3px double var(--ink);
   }}
   .qi {{
     display: flex; gap: .6rem; align-items: flex-start; width: 100%; text-align: left;
@@ -1221,10 +1194,9 @@ def render_html(articles: list) -> str:
     bottom: calc(1.4rem + env(safe-area-inset-bottom));
     transform: translate(-50%, 24px) scale(.96); opacity: 0; pointer-events: none;
     display: flex; align-items: center; gap: .45rem;
-    padding: .6rem 1rem; border-radius: 999px; border: 1px solid var(--line);
+    padding: .6rem 1rem; border-radius: 0; border: 1px solid var(--line);
     background: var(--glass); color: var(--ink);
-    font-size: .82rem; font-weight: 500; box-shadow: var(--shadow-xl);
-    backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    font-family: var(--font-sans); font-size: .78rem; font-weight: 700; letter-spacing: .04em; box-shadow: var(--shadow-xl);
     transition: opacity .28s var(--out), transform .38s var(--spring);
   }}
   .toast.show {{ opacity: 1; transform: translate(-50%, 0) scale(1); }}
@@ -1269,31 +1241,29 @@ def render_html(articles: list) -> str:
        shrink-to-fit under flex, overriding stretch -- kill it here so the
        column actually fills the full width instead of floating narrow and
        centered. */
-    .layout {{ flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: stretch; margin: 0; max-width: none; }}
-    .layout > div:first-child {{ flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }}
+    .layout {{
+      flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: stretch;
+      margin: 0; max-width: none; padding: 0;
+    }}
+    .layout > div:first-child {{ flex: 1; min-height: 0; display: flex; flex-direction: column; }}
     .stage {{ flex: 1; min-height: 0; height: auto; }}
     .count {{ flex: none; }}
-    .size-row {{ display: none; }}
-    /* The prev/next pill used to sit below the card, eating a fixed strip
-       of the now-precious full-bleed height. Forward nav is already the
-       drag gesture (either direction advances -- see attachDrag), so only
-       "back" earns a dedicated control: float it over the top-left corner
-       of the card, sized and glassed to match the save/share .tool
-       buttons on the opposite corner, and drop the pill chrome and the
-       now-redundant next button entirely. Desktop keeps the original
-       below-stage prev/next pair untouched (plenty of room there, and
-       mouse users benefit from an explicit forward button too). */
+    /* Forward nav is already the drag gesture (either direction advances --
+       see attachDrag), so Next earns no space here; Back/Save/Share/Unread
+       become a full-width, always-visible 4-up bar instead of a pill
+       floating below the card -- distinct DOM per control, same buttons as
+       desktop, just laid out differently and with Next hidden. The 1px
+       gap + var(--line-2) background on the grid, with each button's own
+       background painted over it, draws hairline dividers between the four
+       cells for free. */
     .ctrls {{
-      position: absolute; top: .7rem; left: .7rem; z-index: 5;
-      margin: 0; padding: 0; background: none; border: none; box-shadow: none; gap: 0;
+      flex: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+      width: 100%; margin: 0; background: var(--line-2); border-top: 1px solid var(--ink);
+      padding-bottom: env(safe-area-inset-bottom);
     }}
-    #next {{ display: none; }}
-    .ctrls .rnd {{
-      width: 2.1rem; height: 2.1rem; background: var(--glass-2);
-      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-      box-shadow: var(--shadow-sm); border-color: transparent;
-    }}
-    .ctrls .rnd svg {{ width: .95rem; height: .95rem; }}
+    .rnd {{ border: none; background: var(--bg); min-width: 0; height: 3.8rem; padding: .3rem; }}
+    .rnd.solid {{ background: var(--ink); }}
+    #next, .ctrls-sep {{ display: none; }}
   }}
 
   /* Landscape phones: the mobile portrait card forces a >=380px-tall stage
@@ -1305,8 +1275,8 @@ def render_html(articles: list) -> str:
     /* Landscape cards: image beside the text instead of on top of it.
        Portrait mobile keeps the tall layout defined above untouched --
        these rules only apply from this breakpoint up. */
-    .stage {{ height: calc(clamp(300px, 46vh, 380px) * var(--card-scale)); }}
-    .card {{ width: min(calc(min(94%, 780px) * var(--card-scale)), 100%); }}
+    .stage {{ height: clamp(300px, 46vh, 380px); }}
+    .card {{ width: min(94%, 780px); }}
     .card:not(.end) {{ flex-direction: row; }}   /* .end stays a centered vertical stack */
     .media {{ flex: 0 0 40%; height: 100%; }}
     .media .scrim {{ display: none; }}   /* nothing overlays the image in this layout */
@@ -1317,10 +1287,10 @@ def render_html(articles: list) -> str:
     /* The prev/next buttons were sized for the tall mobile card; next to the
        shorter landscape card they read as oversized, with too much dead
        space around them. */
-    .ctrls {{ gap: .9rem; margin-top: 1.1rem; }}
-    .rnd {{ width: 2.5rem; height: 2.5rem; }}
+    .ctrls {{ gap: .3rem; margin-top: .9rem; }}
+    .rnd {{ min-width: 3.2rem; padding: .45rem .4rem; }}
     .rnd svg {{ width: .95rem; height: .95rem; }}
-    .count {{ margin-top: .45rem; }}
+    .count {{ margin-bottom: .45rem; }}
   }}
 
   @media (min-width: 900px) {{
@@ -1349,15 +1319,7 @@ def render_html(articles: list) -> str:
           <line class="ln ln3" x1="4" y1="17" x2="20" y2="17"/>
         </svg>
       </button>
-      <div class="brand"><span class="dot" aria-hidden="true"></span> newsdigest</div>
-      <div class="head-right">
-        <button class="ghost" id="refresh" title="Show me something I haven't seen">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>
-          </svg>
-          Refresh
-        </button>
-      </div>
+      <div class="brand"><span class="dot" aria-hidden="true"></span> NewsFlick</div>
     </div>
     <div class="rail"><i id="rail"></i></div>
   </header>
@@ -1416,20 +1378,32 @@ def render_html(articles: list) -> str:
   <div class="layout">
     <div>
       <main class="stage" id="stage" aria-live="polite"></main>
-      <div class="ctrls">
-        <button class="rnd" id="prev" title="Previous (left arrow)" aria-label="Previous article">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
-        <button class="rnd" id="next" title="Next (right arrow)" aria-label="Next article">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
-      </div>
-      <div class="size-row" aria-label="Card size">
-        <span class="size-lbl">Size</span>
-        <input type="range" id="size-slider" min="75" max="140" step="5" value="100" aria-label="Card size">
-        <span class="size-val" id="size-val">100%</span>
-      </div>
       <div class="count" id="count"></div>
+      <nav class="ctrls" aria-label="Article controls">
+        <button class="rnd" id="prev" title="Previous (left arrow)" aria-label="Previous story">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+          <span class="rnd-label">Back</span>
+        </button>
+        <button class="rnd" id="ctrl-save" aria-label="Save for later" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.2l2.85 5.78 6.38.93-4.61 4.5 1.09 6.36L12 17.76l-5.71 3.01 1.09-6.36-4.61-4.5 6.38-.93L12 3.2z"/></svg>
+          <span class="rnd-label" id="ctrl-save-label">Save</span>
+        </button>
+        <button class="rnd" id="ctrl-share" aria-label="Share story">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/></svg>
+          <span class="rnd-label">Share</span>
+        </button>
+        <button class="rnd" id="next" title="Next (right arrow)" aria-label="Next story">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+          <span class="rnd-label">Next</span>
+        </button>
+        <span class="ctrls-sep" aria-hidden="true"></span>
+        <button class="rnd solid" id="refresh" aria-label="Jump to an unread story">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>
+          </svg>
+          <span class="rnd-label">Unread</span>
+        </button>
+      </nav>
     </div>
     <aside class="queue" id="queue">
       <h3>Up next</h3>
@@ -1456,7 +1430,7 @@ def render_html(articles: list) -> str:
       <button class="a2hs-close" id="a2hs-close" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
-      <h2 id="a2hs-title">Add newsdigest to your Home Screen</h2>
+      <h2 id="a2hs-title">Add NewsFlick to your Home Screen</h2>
       <p>Full-screen, no browser bar, one tap to open.</p>
       <ol class="a2hs-steps">
         <li>Tap the <b>Share</b> button in Safari's toolbar</li>
@@ -1490,6 +1464,9 @@ def render_html(articles: list) -> str:
     var toastEl = document.getElementById('toast');
     var prevBtn = document.getElementById('prev');
     var nextBtn = document.getElementById('next');
+    var ctrlSaveBtn = document.getElementById('ctrl-save');
+    var ctrlSaveLabelEl = document.getElementById('ctrl-save-label');
+    var ctrlShareBtn = document.getElementById('ctrl-share');
     var menuBtn = document.getElementById('menu-btn');
     var drawerEl = document.getElementById('drawer');
     var scrimEl = document.getElementById('scrim');
@@ -1727,7 +1704,6 @@ def render_html(articles: list) -> str:
       var also = (a.alsoFrom && a.alsoFrom.length)
         ? '<div class="also">also on <b>' + a.alsoFrom.map(esc).join('</b>, <b>') + '</b></div>'
         : '';
-      var on = saved.has(a.id);
       var link = safeUrl(a.link);
       // "Not rated" never renders a pill -- an unrated source must not look
       // like a deliberate "neutral" judgment.
@@ -1742,11 +1718,6 @@ def render_html(articles: list) -> str:
         ? '<span class="pill">' + esc(a.topic) + '</span>'
         : '';
       return ''
-        + '<div class="tools">'
-        +   '<button class="tool save' + (on ? ' on' : '') + '" data-act="save" title="Save for later"'
-        +   ' aria-label="Save for later" aria-pressed="' + (on ? 'true' : 'false') + '">' + ICON.star + '</button>'
-        +   '<button class="tool" data-act="share" title="Share" aria-label="Share">' + ICON.share + '</button>'
-        + '</div>'
         + media
         + '<div class="body">'
         +   '<div class="metarow">'
@@ -1791,6 +1762,11 @@ def render_html(articles: list) -> str:
       railEl.style.width = pct + '%';
       prevBtn.disabled = index === 0;
       nextBtn.disabled = index >= list.length;
+      var cur = list[index];
+      var curSaved = !!(cur && saved.has(cur.id));
+      ctrlSaveBtn.classList.toggle('on', curSaved);
+      ctrlSaveBtn.setAttribute('aria-pressed', curSaved ? 'true' : 'false');
+      ctrlSaveLabelEl.textContent = curSaved ? 'Saved' : 'Save';
     }}
 
     // Full rebuild: destroys and recreates the whole stack. Correct after
@@ -2000,6 +1976,7 @@ def render_html(articles: list) -> str:
         void btn.offsetWidth;          // restart the keyframe
         btn.classList.add('pop');
       }}
+      ctrlSaveLabelEl.textContent = on ? 'Saved' : 'Save';
       renderSources();
       toast(on ? 'Saved' : 'Removed from saved');
       // Un-saving inside the Saved view shrinks the list under our feet.
@@ -2164,7 +2141,7 @@ def render_html(articles: list) -> str:
 
       ctx.font = '600 24px ui-sans-serif, system-ui, sans-serif';
       ctx.fillStyle = 'rgba(255,255,255,.62)';
-      ctx.fillText('newsdigest', pad, H - pad - 24);
+      ctx.fillText('NewsFlick', pad, H - pad - 24);
 
       return canvas;
     }}
@@ -2204,7 +2181,7 @@ def render_html(articles: list) -> str:
     // (see the catch in share() below).
     function shareLinkFallback(a) {{
       var url = location.origin + location.pathname + '#' + a.id;
-      var text = a.title + ' — via newsdigest';
+      var text = a.title + ' — via NewsFlick';
       if (navigator.share) {{
         navigator.share({{ title: a.title, text: text, url: url }}).catch(function () {{}});
       }} else if (navigator.clipboard) {{
@@ -2223,10 +2200,10 @@ def render_html(articles: list) -> str:
       }}
       toast('Preparing image…');
       loadImageForCanvas(imgUrl)
-        .then(function (img) {{ return canvasToPngFile(buildShareCanvas(a, img), 'newsdigest-' + a.id); }})
+        .then(function (img) {{ return canvasToPngFile(buildShareCanvas(a, img), 'newsflick-' + a.id); }})
         .then(function (file) {{
           if (navigator.share && navigator.canShare && navigator.canShare({{ files: [file] }})) {{
-            return navigator.share({{ files: [file], title: a.title, text: a.title + ' — via newsdigest' }})
+            return navigator.share({{ files: [file], title: a.title, text: a.title + ' — via NewsFlick' }})
               .catch(function (e) {{
                 // AbortError just means the user dismissed the share sheet.
                 if (e && e.name !== 'AbortError') {{ downloadFile(file); toast('Image saved'); }}
@@ -2258,14 +2235,7 @@ def render_html(articles: list) -> str:
           sourceFilter = btn.dataset.value; renderSources();
         }}
         render();
-        return;
       }}
-      var card = btn.closest('.card');
-      if (!card) return;
-      var a = all.find(function (x) {{ return x.id === card.dataset.id; }});
-      if (!a) return;
-      if (act === 'save') toggleSave(a.id, btn);
-      else if (act === 'share') share(a);
     }});
 
     qlist.addEventListener('click', function (e) {{
@@ -2312,6 +2282,16 @@ def render_html(articles: list) -> str:
       var top = stage.querySelector('.card.top');
       if (top) flyOut(top, 1); else advance();
     }});
+    ctrlSaveBtn.addEventListener('click', function () {{
+      var c = stage.querySelector('.card.top');
+      if (c) toggleSave(c.dataset.id, ctrlSaveBtn);
+    }});
+    ctrlShareBtn.addEventListener('click', function () {{
+      var c = stage.querySelector('.card.top');
+      if (!c) return;
+      var a = all.find(function (x) {{ return x.id === c.dataset.id; }});
+      if (a) share(a);
+    }});
 
     document.addEventListener('keydown', function (e) {{
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -2325,7 +2305,7 @@ def render_html(articles: list) -> str:
         e.preventDefault(); goBack();
       }} else if (e.key === 's' || e.key === 'S') {{
         var c = stage.querySelector('.card.top');
-        if (c) toggleSave(c.dataset.id, c.querySelector('.save'));
+        if (c) toggleSave(c.dataset.id, ctrlSaveBtn);
       }}
     }});
 
@@ -2415,19 +2395,6 @@ def render_html(articles: list) -> str:
       var mode = btn.dataset.theme;
       applyTheme(mode);
       try {{ localStorage.setItem(THEME_KEY, mode); }} catch (e2) {{}}
-    }});
-
-    // Card-size slider: one knob scales .stage height and .card width
-    // together (both read var(--card-scale) in the CSS above), so there's no
-    // way to stretch the card into a bad aspect ratio -- just bigger or
-    // smaller, proportionally. Session-only by design: reloading resets to
-    // 100% rather than risking a user getting stuck on an odd size forever.
-    var sizeSlider = document.getElementById('size-slider');
-    var sizeVal = document.getElementById('size-val');
-    sizeSlider.addEventListener('input', function () {{
-      var pct = sizeSlider.value;
-      document.documentElement.style.setProperty('--card-scale', pct / 100);
-      sizeVal.textContent = pct + '%';
     }});
 
     function setDrawer(open) {{

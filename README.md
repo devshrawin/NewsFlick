@@ -1,4 +1,8 @@
-# newsdigest
+# NewsFlick
+
+(codename `newsdigest` internally — repo name, localStorage keys, and the
+GitHub URL are unchanged to avoid breaking existing users' saved data and
+links; this is a display-name rebrand only.)
 
 Two-week experiment: can an automated pipeline cluster India news feeds by
 story and summarise each cluster well enough to be worth reading?

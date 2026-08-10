@@ -1,13 +1,17 @@
 # India news feeds for the 2-week clustering test.
 # Chosen for MAXIMUM OVERLAP, not coverage. The same PTI story arriving
 # ten times is the point — that's what the clustering is being tested on.
+# Expanded with a batch of major international outlets for broader
+# world-news coverage alongside the India-domestic core.
 #
 # These URLs are best-effort. Run the feed-check workflow to find out
 # which are actually alive; delete or fix the dead ones.
 #
-# Last validated 2026-08-08 against every URL below (via pipeline/check_feeds.py's
-# own fetch logic, not just a HEAD request). Verdicts move fast in this list --
-# re-validate before trusting "OK" for more than a few weeks.
+# Last validated 2026-08-08 against the pre-expansion list (via
+# pipeline/check_feeds.py's own fetch logic, not just a HEAD request).
+# The new batch of ~30 international feeds below has NOT been validated
+# yet as of this edit -- run the pipeline once and prune whatever comes
+# back DEAD before trusting this comment again.
 #   DEAD, not re-added: Firstpost, ThePrint, Scroll, The Wire (0 entries --
 #     feed URL moved), Deccan Herald (404), Telegraph India / The Tribune /
 #     Business Standard (403 -- blocking non-browser UA even with the
@@ -27,6 +31,14 @@
 # first and wins when a story is clearly about somewhere else -- this only
 # fills in the article that matches nothing. Left unset on the genuinely
 # international outlets, where there's no sensible single default.
+#
+# A round of alternate URLs was proposed for several already-working
+# domestic feeds (different section paths on the same sites). Left the
+# working URLs alone rather than swapping to unvalidated alternates for
+# feeds that already work -- Indian Express is the one exception, since
+# its current URL is the one known to 403 specifically from GitHub
+# Actions' datacenter IPs; its alternate is worth trying since the
+# current one is already broken from CI some of the time.
 
 feeds:
   # --- National ---
@@ -37,7 +49,7 @@ feeds:
     url: https://www.thehindu.com/feeder/default.rss
     region: India
   - name: Indian Express
-    url: https://indianexpress.com/section/india/feed/
+    url: https://indianexpress.com/feed/
     region: India
   - name: Hindustan Times
     url: https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml
@@ -66,6 +78,9 @@ feeds:
   - name: Kashmir Observer
     url: https://kashmirobserver.net/feed/
     region: India
+  - name: Rediff News
+    url: https://www.rediff.com/rss/newsrss.xml
+    region: India
 
   # --- Business & Finance ---
   - name: Livemint
@@ -77,6 +92,14 @@ feeds:
   - name: Moneycontrol   # STALE at last check -- alive, just low-frequency
     url: https://www.moneycontrol.com/rss/latestnews.xml
     region: India
+  - name: CNBC
+    url: https://www.cnbc.com/id/100003114/device/rss/rss.html
+  - name: Wall Street Journal World
+    url: https://feeds.a.dj.com/rss/RSSWorldNews.xml
+  - name: Forbes
+    url: https://www.forbes.com/business/feed/
+  - name: Business Insider
+    url: https://www.businessinsider.com/rss
 
   # --- Technology ---
   - name: Medianama
@@ -94,6 +117,16 @@ feeds:
   - name: TechPP   # STALE at last check -- alive, just low-frequency
     url: https://techpp.com/feed/
     region: India
+  - name: TechCrunch
+    url: https://techcrunch.com/feed/
+  - name: The Verge
+    url: https://www.theverge.com/rss/index.xml
+  - name: Ars Technica
+    url: https://feeds.arstechnica.com/arstechnica/index
+  - name: Wired
+    url: https://www.wired.com/feed/rss
+  - name: Engadget
+    url: https://www.engadget.com/rss.xml
 
   # --- Sports ---
   - name: ESPN Cricinfo
@@ -102,6 +135,12 @@ feeds:
   - name: Sportstar
     url: https://sportstar.thehindu.com/feeder/default.rss
     region: India
+  - name: ESPN
+    url: https://www.espn.com/espn/rss/news
+  - name: BBC Sport
+    url: https://feeds.bbci.co.uk/sport/rss.xml
+  - name: Sky Sports
+    url: https://www.skysports.com/rss/12040
 
   # --- Entertainment ---
   - name: Bollywood Hungama
@@ -110,6 +149,10 @@ feeds:
   - name: Pinkvilla   # STALE at last check -- alive, just low-frequency
     url: https://www.pinkvilla.com/rss.xml
     region: India
+  - name: Variety
+    url: https://variety.com/feed/
+  - name: Hollywood Reporter
+    url: https://www.hollywoodreporter.com/feed/
 
   # --- Government ---
   - name: MyGov India   # STALE at last check -- alive, just low-frequency
@@ -123,8 +166,12 @@ feeds:
   - name: Alt News   # STALE at last check -- alive, just low-frequency
     url: https://www.altnews.in/feed/
     region: India
+  - name: Snopes
+    url: https://www.snopes.com/feed/
+  - name: PolitiFact
+    url: https://www.politifact.com/rss/all/
 
-  # --- International ---
+  # --- International / World ---
   - name: BBC World
     url: https://feeds.bbci.co.uk/news/world/rss.xml
   - name: BBC Asia
@@ -136,3 +183,52 @@ feeds:
     url: https://rss.dw.com/rdf/rss-en-all
   - name: NPR
     url: https://feeds.npr.org/1001/rss.xml
+  - name: NPR World
+    url: https://feeds.npr.org/1004/rss.xml
+  - name: The Guardian World
+    url: https://www.theguardian.com/world/rss
+  - name: The Guardian India
+    url: https://www.theguardian.com/world/india/rss
+    region: India
+  - name: CNN World
+    url: http://rss.cnn.com/rss/edition_world.rss
+  - name: CNN Top Stories
+    url: http://rss.cnn.com/rss/edition.rss
+  - name: New York Times World
+    url: https://rss.nytimes.com/services/xml/rss/nyt/World.xml
+  - name: New York Times Home
+    url: https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml
+  - name: Washington Post World
+    url: https://feeds.washingtonpost.com/rss/world
+  - name: Washington Post National
+    url: https://feeds.washingtonpost.com/rss/national
+  - name: France 24 English
+    url: https://www.france24.com/en/rss
+  - name: Sky News
+    url: https://feeds.skynews.com/feeds/rss/home.xml
+  - name: ABC News (US)
+    url: https://abcnews.go.com/abcnews/internationalheadlines
+  - name: CBC News
+    url: https://www.cbc.ca/cmlink/rss-topstories
+  - name: Channel News Asia
+    url: https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml
+  - name: South China Morning Post
+    url: https://www.scmp.com/rss/91/feed
+  - name: The Independent
+    url: https://www.independent.co.uk/news/world/rss
+  - name: Euronews English
+    url: https://www.euronews.com/rss
+  - name: Japan Times
+    url: https://www.japantimes.co.jp/feed/
+  - name: Straits Times
+    url: https://www.straitstimes.com/news/world/rss.xml
+  - name: Vox
+    url: https://www.vox.com/rss/index.xml
+  - name: The Atlantic
+    url: https://www.theatlantic.com/feed/all/
+  - name: Politico
+    url: https://www.politico.com/rss/politics08.xml
+  - name: Axios
+    url: https://api.axios.com/feed/
+  - name: The Hill
+    url: https://thehill.com/feed/
