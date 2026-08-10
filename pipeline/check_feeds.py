@@ -658,7 +658,9 @@ def render_html(articles: list) -> str:
 <meta name="description" content="A swipeable digest of Indian news, rebuilt every hour.">
 <title>NewsFlick</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0e0f14">
+<meta name="theme-color" content="#141310">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="NewsFlick">
@@ -810,16 +812,17 @@ def render_html(articles: list) -> str:
     display: flex; align-items: center; gap: .5rem;
     font-family: var(--font-serif); font-size: 1.4rem; font-weight: 800; letter-spacing: -.02em;
   }}
-  .brand .dot {{
-    width: .62rem; height: .62rem; border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), var(--accent-2));
-    box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 60%, transparent);
-    animation: pulse 3.4s var(--out) infinite;
+  .brand-mark {{ width: 1.5rem; height: 1.5rem; flex: none; }}
+  /* The tan block is the one piece of the mark that's a fixed brand color
+     rather than a var(--*) token -- it stays tan in both themes, same as
+     the frame/badge/lines flip with var(--ink)/var(--bg). Pulsing it
+     (not a separate dot, per feedback) reads as a small "still live" cue
+     without adding any new element to the mark. */
+  @keyframes brandPulse {{
+    0%, 70%, 100% {{ opacity: 1; }}
+    35% {{ opacity: .5; }}
   }}
-  @keyframes pulse {{
-    0%, 70%, 100% {{ box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 55%, transparent); }}
-    35% {{ box-shadow: 0 0 0 .42rem transparent; }}
-  }}
+  .brand-pulse {{ animation: brandPulse 3.4s var(--out) infinite; transform-origin: center; }}
   .ghost {{
     display: inline-flex; align-items: center; gap: .34rem;
     border: 1px solid var(--line-2); background: var(--glass-2); color: var(--sub);
@@ -1319,7 +1322,18 @@ def render_html(articles: list) -> str:
           <line class="ln ln3" x1="4" y1="17" x2="20" y2="17"/>
         </svg>
       </button>
-      <div class="brand"><span class="dot" aria-hidden="true"></span> NewsFlick</div>
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 100 100" aria-hidden="true">
+          <rect x="0" y="0" width="100" height="100" rx="22" fill="var(--bg)"/>
+          <rect x="10" y="14" width="46" height="46" rx="10" fill="none" stroke="var(--ink)" stroke-width="5"/>
+          <text x="33" y="45" text-anchor="middle" dominant-baseline="central" font-family="Archivo, sans-serif" font-weight="800" font-size="30" fill="var(--ink)">N</text>
+          <rect x="64" y="12" width="28" height="5" rx="2.5" fill="var(--ink)"/>
+          <rect x="64" y="25.5" width="23" height="5" rx="2.5" fill="#c6b28c"/>
+          <rect x="64" y="39" width="17" height="5" rx="2.5" fill="#c6b28c"/>
+          <rect x="10" y="67" width="46" height="29" rx="5" fill="#c6b28c" class="brand-pulse"/>
+        </svg>
+        NewsFlick
+      </div>
     </div>
     <div class="rail"><i id="rail"></i></div>
   </header>
