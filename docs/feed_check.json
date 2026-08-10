@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-08-10T07:00:26.239789+00:00",
+  "checked_at": "2026-08-10T07:43:11.413407+00:00",
   "feeds": [
     {
       "name": "The Hindu",
@@ -8,7 +8,7 @@
       "note": "",
       "entries": 60,
       "age_hours": 0.1,
-      "median_chars": 183,
+      "median_chars": 180,
       "dated": 60,
       "verdict": "OK"
     },
@@ -19,13 +19,13 @@
       "note": "",
       "entries": 60,
       "age_hours": 0.1,
-      "median_chars": 180,
+      "median_chars": 157,
       "dated": 60,
       "verdict": "OK"
     },
     {
       "name": "Indian Express",
-      "url": "https://indianexpress.com/section/india/feed/",
+      "url": "https://indianexpress.com/feed/",
       "ok": false,
       "note": "HTTP 403",
       "entries": 0,
@@ -40,8 +40,8 @@
       "ok": true,
       "note": "",
       "entries": 100,
-      "age_hours": 0.5,
-      "median_chars": 144,
+      "age_hours": 0.2,
+      "median_chars": 140,
       "dated": 100,
       "verdict": "OK"
     },
@@ -51,8 +51,8 @@
       "ok": true,
       "note": "",
       "entries": 46,
-      "age_hours": 0.5,
-      "median_chars": 364,
+      "age_hours": 0.6,
+      "median_chars": 357,
       "dated": 46,
       "verdict": "OK"
     },
@@ -62,7 +62,7 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 0.1,
+      "age_hours": 0.7,
       "median_chars": 141,
       "dated": 20,
       "verdict": "OK"
@@ -94,10 +94,10 @@
       "url": "https://www.freepressjournal.in/stories.rss",
       "ok": true,
       "note": "",
-      "entries": 80,
-      "age_hours": 0.5,
-      "median_chars": 2271,
-      "dated": 80,
+      "entries": 85,
+      "age_hours": 0.2,
+      "median_chars": 2356,
+      "dated": 85,
       "verdict": "OK"
     },
     {
@@ -117,8 +117,8 @@
       "ok": true,
       "note": "",
       "entries": 50,
-      "age_hours": 1.4,
-      "median_chars": 2459,
+      "age_hours": 0.5,
+      "median_chars": 2410,
       "dated": 50,
       "verdict": "OK"
     },
@@ -128,9 +128,20 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 0.5,
+      "age_hours": 1.1,
       "median_chars": 1883,
       "dated": 10,
+      "verdict": "OK"
+    },
+    {
+      "name": "Rediff News",
+      "url": "https://www.rediff.com/rss/newsrss.xml",
+      "ok": true,
+      "note": "",
+      "entries": 51,
+      "age_hours": 0.1,
+      "median_chars": 306,
+      "dated": 51,
       "verdict": "OK"
     },
     {
@@ -139,7 +150,7 @@
       "ok": true,
       "note": "",
       "entries": 35,
-      "age_hours": 0.1,
+      "age_hours": 0.7,
       "median_chars": 205,
       "dated": 35,
       "verdict": "OK"
@@ -150,7 +161,7 @@
       "ok": true,
       "note": "",
       "entries": 51,
-      "age_hours": 1.0,
+      "age_hours": 0.4,
       "median_chars": 0,
       "dated": 51,
       "verdict": "OK"
@@ -161,10 +172,54 @@
       "ok": true,
       "note": "",
       "entries": 15,
-      "age_hours": 20134.8,
+      "age_hours": 20135.4,
       "median_chars": 161,
       "dated": 15,
       "verdict": "STALE"
+    },
+    {
+      "name": "CNBC",
+      "url": "https://www.cnbc.com/id/100003114/device/rss/rss.html",
+      "ok": true,
+      "note": "",
+      "entries": 30,
+      "age_hours": 0.5,
+      "median_chars": 135,
+      "dated": 30,
+      "verdict": "OK"
+    },
+    {
+      "name": "Wall Street Journal World",
+      "url": "https://feeds.a.dj.com/rss/RSSWorldNews.xml",
+      "ok": true,
+      "note": "",
+      "entries": 20,
+      "age_hours": 13428.2,
+      "median_chars": 143,
+      "dated": 20,
+      "verdict": "STALE"
+    },
+    {
+      "name": "Forbes",
+      "url": "https://www.forbes.com/business/feed/",
+      "ok": true,
+      "note": "",
+      "entries": 25,
+      "age_hours": 0.6,
+      "median_chars": 158,
+      "dated": 25,
+      "verdict": "OK"
+    },
+    {
+      "name": "Business Insider",
+      "url": "https://www.businessinsider.com/rss",
+      "ok": true,
+      "note": "redirected -> https://feeds.businessinsider.com/custom/all",
+      "entries": 20,
+      "age_hours": 2.2,
+      "median_chars": 4377,
+      "dated": 20,
+      "verdict": "OK"
     },
     {
       "name": "Medianama",
@@ -183,8 +238,8 @@
       "ok": true,
       "note": "",
       "entries": 100,
-      "age_hours": 2.7,
-      "median_chars": 483,
+      "age_hours": 1.0,
+      "median_chars": 492,
       "dated": 100,
       "verdict": "OK"
     },
@@ -194,7 +249,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 0.9,
+      "age_hours": 1.5,
       "median_chars": 183,
       "dated": 10,
       "verdict": "OK"
@@ -205,8 +260,8 @@
       "ok": true,
       "note": "",
       "entries": 24,
-      "age_hours": 0.6,
-      "median_chars": 4617,
+      "age_hours": 0.8,
+      "median_chars": 5851,
       "dated": 24,
       "verdict": "OK"
     },
@@ -216,10 +271,65 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 88.3,
+      "age_hours": 88.9,
       "median_chars": 8532,
       "dated": 10,
       "verdict": "STALE"
+    },
+    {
+      "name": "TechCrunch",
+      "url": "https://techcrunch.com/feed/",
+      "ok": true,
+      "note": "",
+      "entries": 20,
+      "age_hours": 11.0,
+      "median_chars": 141,
+      "dated": 20,
+      "verdict": "OK"
+    },
+    {
+      "name": "The Verge",
+      "url": "https://www.theverge.com/rss/index.xml",
+      "ok": true,
+      "note": "",
+      "entries": 10,
+      "age_hours": 11.1,
+      "median_chars": 743,
+      "dated": 10,
+      "verdict": "OK"
+    },
+    {
+      "name": "Ars Technica",
+      "url": "https://feeds.arstechnica.com/arstechnica/index",
+      "ok": true,
+      "note": "",
+      "entries": 20,
+      "age_hours": 20.6,
+      "median_chars": 1072,
+      "dated": 20,
+      "verdict": "OK"
+    },
+    {
+      "name": "Wired",
+      "url": "https://www.wired.com/feed/rss",
+      "ok": true,
+      "note": "",
+      "entries": 50,
+      "age_hours": 1.6,
+      "median_chars": 146,
+      "dated": 50,
+      "verdict": "OK"
+    },
+    {
+      "name": "Engadget",
+      "url": "https://www.engadget.com/rss.xml",
+      "ok": true,
+      "note": "",
+      "entries": 20,
+      "age_hours": 13.1,
+      "median_chars": 94,
+      "dated": 20,
+      "verdict": "OK"
     },
     {
       "name": "ESPN Cricinfo",
@@ -227,7 +337,7 @@
       "ok": true,
       "note": "",
       "entries": 100,
-      "age_hours": 2.1,
+      "age_hours": 2.8,
       "median_chars": 93,
       "dated": 100,
       "verdict": "OK"
@@ -238,9 +348,42 @@
       "ok": true,
       "note": "",
       "entries": 61,
-      "age_hours": 0.4,
-      "median_chars": 163,
+      "age_hours": 0.5,
+      "median_chars": 165,
       "dated": 61,
+      "verdict": "OK"
+    },
+    {
+      "name": "ESPN",
+      "url": "https://www.espn.com/espn/rss/news",
+      "ok": false,
+      "note": "HTTP 202",
+      "entries": 0,
+      "age_hours": null,
+      "median_chars": 0,
+      "dated": 0,
+      "verdict": "DEAD"
+    },
+    {
+      "name": "BBC Sport",
+      "url": "https://feeds.bbci.co.uk/sport/rss.xml",
+      "ok": true,
+      "note": "",
+      "entries": 78,
+      "age_hours": 0.5,
+      "median_chars": 146,
+      "dated": 78,
+      "verdict": "OK"
+    },
+    {
+      "name": "Sky Sports",
+      "url": "https://www.skysports.com/rss/12040",
+      "ok": true,
+      "note": "",
+      "entries": 20,
+      "age_hours": -0.4,
+      "median_chars": 124,
+      "dated": 20,
       "verdict": "OK"
     },
     {
@@ -249,8 +392,8 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 0.2,
-      "median_chars": 2719,
+      "age_hours": 0.1,
+      "median_chars": 2379,
       "dated": 10,
       "verdict": "OK"
     },
@@ -260,9 +403,31 @@
       "ok": true,
       "note": "",
       "entries": 50,
-      "age_hours": 1.5,
+      "age_hours": 0.8,
       "median_chars": 2436,
       "dated": 50,
+      "verdict": "OK"
+    },
+    {
+      "name": "Variety",
+      "url": "https://variety.com/feed/",
+      "ok": true,
+      "note": "",
+      "entries": 10,
+      "age_hours": 0.0,
+      "median_chars": 362,
+      "dated": 10,
+      "verdict": "OK"
+    },
+    {
+      "name": "Hollywood Reporter",
+      "url": "https://www.hollywoodreporter.com/feed/",
+      "ok": true,
+      "note": "",
+      "entries": 10,
+      "age_hours": 0.6,
+      "median_chars": 137,
+      "dated": 10,
       "verdict": "OK"
     },
     {
@@ -271,7 +436,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 68.4,
+      "age_hours": 69.0,
       "median_chars": 1773,
       "dated": 10,
       "verdict": "STALE"
@@ -282,7 +447,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 4.8,
+      "age_hours": 5.5,
       "median_chars": 2716,
       "dated": 10,
       "verdict": "OK"
@@ -293,10 +458,32 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 49.3,
+      "age_hours": 49.9,
       "median_chars": 6340,
       "dated": 10,
       "verdict": "STALE"
+    },
+    {
+      "name": "Snopes",
+      "url": "https://www.snopes.com/feed/",
+      "ok": true,
+      "note": "",
+      "entries": 20,
+      "age_hours": 5.6,
+      "median_chars": 118,
+      "dated": 20,
+      "verdict": "OK"
+    },
+    {
+      "name": "PolitiFact",
+      "url": "https://www.politifact.com/rss/all/",
+      "ok": false,
+      "note": "HTTP 404",
+      "entries": 0,
+      "age_hours": null,
+      "median_chars": 0,
+      "dated": 0,
+      "verdict": "DEAD"
     },
     {
       "name": "BBC World",
@@ -304,7 +491,7 @@
       "ok": true,
       "note": "",
       "entries": 26,
-      "age_hours": 3.4,
+      "age_hours": 4.1,
       "median_chars": 107,
       "dated": 26,
       "verdict": "OK"
@@ -314,10 +501,10 @@
       "url": "https://feeds.bbci.co.uk/news/world/asia/rss.xml",
       "ok": true,
       "note": "",
-      "entries": 17,
-      "age_hours": 0.7,
+      "entries": 16,
+      "age_hours": 0.2,
       "median_chars": 107,
-      "dated": 17,
+      "dated": 16,
       "verdict": "OK"
     },
     {
@@ -326,7 +513,7 @@
       "ok": true,
       "note": "",
       "entries": 25,
-      "age_hours": 0.5,
+      "age_hours": 0.4,
       "median_chars": 111,
       "dated": 25,
       "verdict": "OK"
@@ -337,7 +524,7 @@
       "ok": true,
       "note": "",
       "entries": 142,
-      "age_hours": 0.2,
+      "age_hours": 0.4,
       "median_chars": 192,
       "dated": 142,
       "verdict": "OK"
@@ -348,9 +535,273 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 3.0,
+      "age_hours": 3.6,
       "median_chars": 189,
       "dated": 10,
+      "verdict": "OK"
+    },
+    {
+      "name": "NPR World",
+      "url": "https://feeds.npr.org/1004/rss.xml",
+      "ok": true,
+      "note": "",
+      "entries": 10,
+      "age_hours": 9.6,
+      "median_chars": 192,
+      "dated": 10,
+      "verdict": "OK"
+    },
+    {
+      "name": "The Guardian World",
+      "url": "https://www.theguardian.com/world/rss",
+      "ok": true,
+      "note": "",
+      "entries": 45,
+      "age_hours": 0.2,
+      "median_chars": 572,
+      "dated": 45,
+      "verdict": "OK"
+    },
+    {
+      "name": "The Guardian India",
+      "url": "https://www.theguardian.com/world/india/rss",
+      "ok": true,
+      "note": "",
+      "entries": 20,
+      "age_hours": 15.2,
+      "median_chars": 622,
+      "dated": 20,
+      "verdict": "OK"
+    },
+    {
+      "name": "CNN World",
+      "url": "http://rss.cnn.com/rss/edition_world.rss",
+      "ok": true,
+      "note": "",
+      "entries": 29,
+      "age_hours": 25372.7,
+      "median_chars": 95,
+      "dated": 23,
+      "verdict": "STALE"
+    },
+    {
+      "name": "CNN Top Stories",
+      "url": "http://rss.cnn.com/rss/edition.rss",
+      "ok": true,
+      "note": "",
+      "entries": 50,
+      "age_hours": 20464.2,
+      "median_chars": 192,
+      "dated": 46,
+      "verdict": "STALE"
+    },
+    {
+      "name": "New York Times World",
+      "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+      "ok": true,
+      "note": "",
+      "entries": 57,
+      "age_hours": 0.3,
+      "median_chars": 148,
+      "dated": 57,
+      "verdict": "OK"
+    },
+    {
+      "name": "New York Times Home",
+      "url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+      "ok": true,
+      "note": "",
+      "entries": 17,
+      "age_hours": 1.1,
+      "median_chars": 157,
+      "dated": 17,
+      "verdict": "OK"
+    },
+    {
+      "name": "Washington Post World",
+      "url": "https://feeds.washingtonpost.com/rss/world",
+      "ok": true,
+      "note": "",
+      "entries": 2,
+      "age_hours": 9.5,
+      "median_chars": 160,
+      "dated": 2,
+      "verdict": "OK"
+    },
+    {
+      "name": "Washington Post National",
+      "url": "https://feeds.washingtonpost.com/rss/national",
+      "ok": true,
+      "note": "",
+      "entries": 5,
+      "age_hours": 21.6,
+      "median_chars": 160,
+      "dated": 5,
+      "verdict": "OK"
+    },
+    {
+      "name": "France 24 English",
+      "url": "https://www.france24.com/en/rss",
+      "ok": true,
+      "note": "",
+      "entries": 23,
+      "age_hours": 0.8,
+      "median_chars": 364,
+      "dated": 23,
+      "verdict": "OK"
+    },
+    {
+      "name": "Sky News",
+      "url": "https://feeds.skynews.com/feeds/rss/home.xml",
+      "ok": true,
+      "note": "",
+      "entries": 10,
+      "age_hours": 3.1,
+      "median_chars": 139,
+      "dated": 10,
+      "verdict": "OK"
+    },
+    {
+      "name": "ABC News (US)",
+      "url": "https://abcnews.go.com/abcnews/internationalheadlines",
+      "ok": true,
+      "note": "redirected -> https://abcnews.com/abcnews/internationalheadlines",
+      "entries": 25,
+      "age_hours": 0.7,
+      "median_chars": 126,
+      "dated": 25,
+      "verdict": "OK"
+    },
+    {
+      "name": "CBC News",
+      "url": "https://www.cbc.ca/cmlink/rss-topstories",
+      "ok": true,
+      "note": "browser UA needed; redirected -> https://www.cbc.ca/webfeed/rss/rss-topstories",
+      "entries": 20,
+      "age_hours": 5.3,
+      "median_chars": 217,
+      "dated": 20,
+      "verdict": "OK"
+    },
+    {
+      "name": "Channel News Asia",
+      "url": "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml",
+      "ok": true,
+      "note": "",
+      "entries": 20,
+      "age_hours": 0.3,
+      "median_chars": 117,
+      "dated": 20,
+      "verdict": "OK"
+    },
+    {
+      "name": "South China Morning Post",
+      "url": "https://www.scmp.com/rss/91/feed",
+      "ok": true,
+      "note": "",
+      "entries": 50,
+      "age_hours": 0.2,
+      "median_chars": 500,
+      "dated": 50,
+      "verdict": "OK"
+    },
+    {
+      "name": "The Independent",
+      "url": "https://www.independent.co.uk/news/world/rss",
+      "ok": true,
+      "note": "",
+      "entries": 27,
+      "age_hours": 0.7,
+      "median_chars": 109,
+      "dated": 27,
+      "verdict": "OK"
+    },
+    {
+      "name": "Euronews English",
+      "url": "https://www.euronews.com/rss",
+      "ok": true,
+      "note": "",
+      "entries": 50,
+      "age_hours": 0.1,
+      "median_chars": 181,
+      "dated": 50,
+      "verdict": "OK"
+    },
+    {
+      "name": "Japan Times",
+      "url": "https://www.japantimes.co.jp/feed/",
+      "ok": true,
+      "note": "",
+      "entries": 30,
+      "age_hours": 0.2,
+      "median_chars": 144,
+      "dated": 30,
+      "verdict": "OK"
+    },
+    {
+      "name": "Straits Times",
+      "url": "https://www.straitstimes.com/news/world/rss.xml",
+      "ok": true,
+      "note": "",
+      "entries": 50,
+      "age_hours": 0.3,
+      "median_chars": 103,
+      "dated": 50,
+      "verdict": "OK"
+    },
+    {
+      "name": "Vox",
+      "url": "https://www.vox.com/rss/index.xml",
+      "ok": true,
+      "note": "",
+      "entries": 10,
+      "age_hours": 17.5,
+      "median_chars": 9988,
+      "dated": 10,
+      "verdict": "OK"
+    },
+    {
+      "name": "The Atlantic",
+      "url": "https://www.theatlantic.com/feed/all/",
+      "ok": true,
+      "note": "",
+      "entries": 25,
+      "age_hours": 16.6,
+      "median_chars": 8481,
+      "dated": 25,
+      "verdict": "OK"
+    },
+    {
+      "name": "Politico",
+      "url": "https://www.politico.com/rss/politics08.xml",
+      "ok": false,
+      "note": "HTTP 403",
+      "entries": 0,
+      "age_hours": null,
+      "median_chars": 0,
+      "dated": 0,
+      "verdict": "DEAD"
+    },
+    {
+      "name": "Axios",
+      "url": "https://api.axios.com/feed/",
+      "ok": true,
+      "note": "",
+      "entries": 100,
+      "age_hours": 9.8,
+      "median_chars": 3334,
+      "dated": 100,
+      "verdict": "OK"
+    },
+    {
+      "name": "The Hill",
+      "url": "https://thehill.com/feed/",
+      "ok": true,
+      "note": "redirected -> https://thehill.com/feed/?feed=partnerfeed-news-feed&format=rss",
+      "entries": 100,
+      "age_hours": 4.5,
+      "median_chars": 339,
+      "dated": 100,
       "verdict": "OK"
     }
   ]
