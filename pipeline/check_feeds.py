@@ -1093,20 +1093,6 @@ def render_html(articles: list) -> str:
     background: linear-gradient(to top, var(--bg-2), transparent);
     pointer-events: none;
   }}
-  /* Generated cover for articles with no lead image -- same hue as the
-     source's avatar, so it reads as a deliberate brand-tinted card rather
-     than a missing photo. */
-  .media.noimg {{
-    display: grid; place-items: center;
-    background: linear-gradient(150deg,
-      hsl(var(--hue) 40% 20%), hsl(calc(var(--hue) + 24) 36% 12%));
-  }}
-  .noimg-mark {{
-    font-family: var(--font-serif); font-weight: 500;
-    font-size: 3.2rem; letter-spacing: -.02em;
-    color: hsl(var(--hue) 55% 82% / .5);
-  }}
-
   .body {{ flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 1.05rem 1.15rem 1.1rem; }}
   .metarow {{ display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .55rem; }}
   .src {{
@@ -1735,17 +1721,9 @@ def render_html(articles: list) -> str:
       // gesture from grabbing a pointerdown that started over the photo --
       // without it, starting a swipe on the image dragged/selected the
       // picture instead of moving the card.
-      // No lead image (fact-check/government/business feeds carry these
-      // often -- Factly, MyGov, Economic Times all run image-light) used
-      // to mean the whole card got dropped from the deck. It doesn't
-      // anymore -- see round_robin_by_source()'s caller in main() -- so
-      // there needs to be *something* in the .media slot. A hue-tinted
-      // gradient plus the same initials used on the avatar reads as
-      // designed rather than broken, and costs nothing to generate since
-      // source_hue()/source_initials() already exist for the avatar.
       var media = img
         ? '<div class="media"><img alt="" draggable="false" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(img) + '"><div class="scrim"></div></div>'
-        : '<div class="media noimg done"><span class="noimg-mark">' + esc(a.initials) + '</span></div>';
+        : '';
       var also = (a.alsoFrom && a.alsoFrom.length)
         ? '<div class="also">also on <b>' + a.alsoFrom.map(esc).join('</b>, <b>') + '</b></div>'
         : '';
@@ -2587,7 +2565,14 @@ def main() -> int:
     # never showed up in the Actions job summary (head -12 feed_check.md).
     deduped = dedupe_articles(all_articles)
     merged = len(all_articles) - len(deduped)
+    # Dropped rather than shown with a generated cover -- shipped the
+    # generated-cover version briefly (it fixed whole categories --
+    # Factly, Alt News, MyGov, Economic Times -- silently contributing
+    # zero cards), reverted on explicit user preference. Whole-category
+    # invisibility is a known, accepted tradeoff of reverting this, not
+    # an oversight -- see git history if this needs revisiting.
     no_image = len(deduped) - len([a for a in deduped if a.get("image")])
+    deduped = [a for a in deduped if a.get("image")]
     deduped.sort(
         key=lambda a: a["published"] or datetime.min.replace(tzinfo=timezone.utc),
         reverse=True,
@@ -2605,9 +2590,9 @@ def main() -> int:
         f"- {total_items} items visible right now across live feeds",
         f"- {len(stubs)} of {len(live)} live feeds are teaser-only "
         f"(<{STUB_THRESHOLD} chars) -> need article extraction",
-        f"- {len(all_articles)} articles -> {len(deduped)} after merging "
+        f"- {len(all_articles)} articles -> {len(deduped) + no_image} after merging "
         f"{merged} cross-agency duplicate{'s' if merged != 1 else ''}"
-        + (f", {no_image} shown with a generated cover (no lead image)" if no_image else ""),
+        + (f", {no_image} dropped for having no image" if no_image else ""),
         f"- {sourced} feeds contributed to the {len(deck)}-card deck"
         + (f" ({dropped} older card{'s' if dropped != 1 else ''} not shown, DECK_LIMIT={DECK_LIMIT})" if dropped else ""),
         "",
@@ -2649,10 +2634,10 @@ def main() -> int:
 
     print(f"\nwrote {REPORT_MD.name} + {REPORT_JSON.name} + {REPORT_HTML.name}")
     print(f"  {len(live)}/{len(rows)} feeds graded OK, {sourced} contributed to the deck")
-    print(f"  {len(all_articles)} articles -> {len(deduped)} after merging "
+    print(f"  {len(all_articles)} articles -> {len(deduped) + no_image} after merging "
           f"{merged} cross-agency duplicate{'s' if merged != 1 else ''}")
     if no_image:
-        print(f"  {no_image} card{'s' if no_image != 1 else ''} shown with a generated cover (no lead image)")
+        print(f"  {no_image} card{'s' if no_image != 1 else ''} dropped for having no image")
     if dropped:
         print(f"  deck capped at {DECK_LIMIT}: {dropped} older card"
               f"{'s' if dropped != 1 else ''} not shown (raise DECK_LIMIT to include them)")
