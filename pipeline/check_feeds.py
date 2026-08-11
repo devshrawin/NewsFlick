@@ -520,14 +520,16 @@ def normalize_title(title: str) -> str:
     return re.sub(r"\s+", " ", TITLE_NOISE_RE.sub(" ", title.lower())).strip()
 
 
-def dedupe_articles(articles: list) -> list:
-    """Collapse near-duplicate headlines (typically the same wire story --
-    PTI/ANI/Reuters -- run by multiple publishers) into one card, keeping the
-    best-looking representative and listing who else carried it."""
-    clusters = []   # each: {"anchor": str, "at": datetime|None, "rep": article, "members": [source]}
+def _dedupe_articles_naive(articles: list) -> list:
+    """Reference implementation -- O(n^2), every article scanned against
+    every existing cluster in creation order, first match wins. Kept only
+    as the ground truth tests/test_pipeline.py diffs the real
+    dedupe_articles() against; never called from the pipeline itself.
+    Do not "clean this up" -- its whole value is being an unoptimized,
+    obviously-correct copy of the original algorithm."""
+    clusters = []
 
     def better(a, b):
-        """True if `a` should represent the cluster over current rep `b`."""
         a_img, b_img = bool(a.get("image")), bool(b.get("image"))
         if a_img != b_img:
             return a_img
@@ -549,6 +551,97 @@ def dedupe_articles(articles: list) -> list:
                 break
         if match is None:
             clusters.append({"anchor": norm, "at": a["published"], "rep": a, "members": [a["source"]]})
+            continue
+        if a["source"] not in match["members"]:
+            match["members"].append(a["source"])
+        if better(a, match["rep"]):
+            match["rep"] = a
+
+    out = []
+    for c in clusters:
+        rep = dict(c["rep"])
+        rep["also_from"] = [s for s in c["members"] if s != rep["source"]]
+        out.append(rep)
+    return out
+
+
+def _title_tokens(norm: str) -> set:
+    """Words over 3 chars -- long enough to be load-bearing (a proper noun,
+    a keyword) rather than a stopword ("the", "and") that would appear in
+    nearly every headline and defeat the index below."""
+    return {w for w in norm.split() if len(w) > 3}
+
+
+def dedupe_articles(articles: list) -> list:
+    """Collapse near-duplicate headlines (typically the same wire story --
+    PTI/ANI/Reuters -- run by multiple publishers) into one card, keeping the
+    best-looking representative and listing who else carried it.
+
+    Same algorithm as _dedupe_articles_naive above -- same match order, same
+    `better()`, same anchor pinning -- just narrowed to a smaller candidate
+    set per article before any SequenceMatcher call, since scanning every
+    prior cluster against every article is quadratic and measurably the
+    pipeline's dominant cost past a few hundred articles (~14 min projected
+    at the real ~3,000-article scale, most of a 45-min loop budget).
+
+    Two narrowings, both exact (neither can accept a pair the naive version
+    would have rejected, or reject one it would have accepted):
+      1. A token index maps each cluster's significant words (>3 chars) to
+         the cluster's index, so an article only gets compared against
+         clusters it shares at least one such word with -- two headlines
+         about the same story necessarily share a proper noun or keyword
+         at that length. Titles with no word that long (rare) fall back to
+         scanning every cluster, same as the naive version always does.
+      2. SequenceMatcher.real_quick_ratio()/quick_ratio() are cheap exact
+         upper bounds on ratio() -- checked first, so a pair that can't
+         possibly reach the threshold never pays for the real comparison.
+    Candidates are still visited in creation order (ascending cluster
+    index) so first-match-wins semantics exactly match the naive version.
+    tests/test_pipeline.py::test_dedupe_matches_naive_reference asserts
+    the two produce identical output on every change here -- don't touch
+    either function without running it.
+    """
+    clusters = []   # each: {"anchor": str, "at": datetime|None, "rep": article, "members": [source]}
+    token_index = defaultdict(list)   # token -> [cluster index, ...], append-order == creation order
+
+    def better(a, b):
+        """True if `a` should represent the cluster over current rep `b`."""
+        a_img, b_img = bool(a.get("image")), bool(b.get("image"))
+        if a_img != b_img:
+            return a_img
+        if len(a["snippet"]) != len(b["snippet"]):
+            return len(a["snippet"]) > len(b["snippet"])
+        return (a["published"] or datetime.min.replace(tzinfo=timezone.utc)) > \
+               (b["published"] or datetime.min.replace(tzinfo=timezone.utc))
+
+    for a in articles:
+        norm = normalize_title(a["title"])
+        toks = _title_tokens(norm)
+        if toks:
+            candidate_idxs = sorted(set().union(*(token_index[t] for t in toks)))
+        else:
+            candidate_idxs = range(len(clusters))
+
+        match = None
+        for idx in candidate_idxs:
+            c = clusters[idx]
+            if a["published"] and c["at"]:
+                gap_hours = abs((a["published"] - c["at"]).total_seconds()) / 3600
+                if gap_hours > DEDUPE_WINDOW_HOURS:
+                    continue
+            sm = difflib.SequenceMatcher(None, norm, c["anchor"])
+            if sm.real_quick_ratio() < DEDUPE_TITLE_THRESHOLD:
+                continue
+            if sm.quick_ratio() < DEDUPE_TITLE_THRESHOLD:
+                continue
+            if sm.ratio() >= DEDUPE_TITLE_THRESHOLD:
+                match = c
+                break
+        if match is None:
+            clusters.append({"anchor": norm, "at": a["published"], "rep": a, "members": [a["source"]]})
+            new_idx = len(clusters) - 1
+            for t in toks:
+                token_index[t].append(new_idx)
             continue
         # `anchor`/`at` deliberately stay pinned to the first article that
         # opened the cluster even when a better-looking rep takes over. Moving
@@ -1056,8 +1149,14 @@ def render_html(articles: list) -> str:
   /* Lead image now lives inside .body, after the headline/summary -- a
      fixed-height band rather than a masthead, matching the mockup's
      "text first, photo is a footnote" card. */
+  /* flex:1, not a fixed height/% -- a fixed size either got squeezed by a
+     long headline+summary (fighting h2/.snip for room, worsening the
+     mid-line-clip bug above) or left a dead gap under a short card's
+     "Read full article" when there wasn't enough text to fill it. Grows
+     to whatever .body has left over, floor/ceiling keep it sane at
+     either extreme. */
   .media {{
-    position: relative; flex: none; height: 30%; min-height: 7rem; background: var(--bg-2);
+    position: relative; flex: 1 1 auto; min-height: 7rem; max-height: 60%; background: var(--bg-2);
     overflow: hidden; margin: .7rem 0 0; border: 1px solid var(--line);
   }}
   .media img {{
@@ -1095,9 +1194,10 @@ def render_html(articles: list) -> str:
   .metarow {{
     display: flex; align-items: center; justify-content: space-between; gap: .4rem;
     margin-bottom: .5rem; padding-bottom: .55rem; border-bottom: 1px solid var(--line);
+    flex: none;
   }}
-  .metarow time {{ font-family: var(--font-mono); font-size: .7rem; color: var(--sub); font-variant-numeric: tabular-nums; flex: none; }}
-  .topicrow {{ display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin-bottom: .55rem; }}
+  .metarow .read {{ flex: none; }}
+  .topicrow {{ display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin-bottom: .55rem; flex: none; }}
   .region-tag {{ font-family: var(--font-mono); font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: var(--sub); }}
   .src {{
     display: inline-flex; align-items: center; gap: .5rem;
@@ -1141,23 +1241,26 @@ def render_html(articles: list) -> str:
   .pill.lean::before {{
     content: ""; width: .32rem; height: .32rem; border-radius: 50%; background: var(--sub); flex: none;
   }}
-  /* No scrollbar on .body (see above), so headline/summary are clamped --
-     .card's own overflow:hidden would otherwise silently chop the foot
-     link off an oversized card instead of just trimming the text. */
+  /* h2/.snip/.also get flex:none -- .body's children are flex items by
+     default (flex-shrink:1), so without this a short .stage/.card height
+     could squeeze a clamped h2 shorter than its own 3-line-clamp content
+     box, clipping mid-glyph instead of at a clean line boundary (the
+     headline visibly overlapping the summary below it). .media is the
+     one flexible element instead: it grows to fill whatever's left over
+     on a short card (region-tag-only, no "also") and shrinks first, down
+     to its min-height floor, when text needs the room. */
   .card h2 {{
     margin: 0 0 .4rem; font-family: var(--font-serif); font-size: 1.4rem; line-height: 1.18;
     font-weight: 800; letter-spacing: -.02em;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    flex: none;
   }}
-  .also {{ font-size: .72rem; color: var(--sub); margin: .7rem 0 0; padding-top: .6rem; border-top: 1px solid var(--line); font-style: italic; }}
+  .also {{ font-size: .72rem; color: var(--sub); margin: .7rem 0 0; padding-top: .6rem; border-top: 1px solid var(--line); font-style: italic; flex: none; }}
   .also b {{ color: var(--ink); font-weight: 650; font-style: normal; }}
   .snip {{
     margin: 0; color: var(--sub); font-size: .875rem; line-height: 1.52;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-  }}
-  .foot {{
-    display: flex; align-items: center; justify-content: flex-start; gap: .6rem;
-    margin-top: .85rem; padding-top: .1rem;
+    flex: none;
   }}
   .read {{
     display: inline-flex; align-items: center; gap: .35rem;
@@ -1336,7 +1439,7 @@ def render_html(articles: list) -> str:
     .body {{ padding: 1.9rem 2.2rem 1.6rem; }}
     .card h2 {{ font-size: clamp(1.9rem, 2.6vw, 2.6rem); line-height: 1.08; }}
     .snip {{ font-size: 1.05rem; line-height: 1.55; }}
-    .media {{ height: 34%; }}
+    .media {{ min-height: 9rem; }}
 
     .ctrls {{ gap: .5rem; margin-top: 1rem; }}
   }}
@@ -1811,11 +1914,15 @@ def render_html(articles: list) -> str:
           + '<span class="regmarks" aria-hidden="true"><i></i><i></i><i></i><i></i></span>'
         : '';
       var region = a.region ? '<span class="region-tag">' + esc(a.region) + '</span>' : '';
+      // Read link lives top-right of the metarow, replacing the per-card
+      // timestamp (redundant with the drawer's page-freshness line) -- a
+      // fixed, always-visible corner action instead of something you have
+      // to scroll a variable-length card to find.
       return ''
         + '<div class="body">'
         +   '<div class="metarow">'
         +     '<span class="src"><span class="ava">' + esc(a.initials) + '</span>' + esc(a.source) + '</span>'
-        +     '<time>' + esc(relTime(a.published)) + '</time>'
+        +     (link ? '<a class="read" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">Read full article' + ICON.out + '</a>' : '')
         +   '</div>'
         +   '<div class="topicrow">'
         +     topicPill
@@ -1826,9 +1933,6 @@ def render_html(articles: list) -> str:
         +   '<p class="snip">' + esc(a.snippet) + '</p>'
         +   media
         +   also
-        +   '<div class="foot">'
-        +     (link ? '<a class="read" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">Read full article' + ICON.out + '</a>' : '')
-        +   '</div>'
         + '</div>';
     }}
 
@@ -2665,14 +2769,16 @@ def main() -> int:
     # never showed up in the Actions job summary (head -12 feed_check.md).
     deduped = dedupe_articles(all_articles)
     merged = len(all_articles) - len(deduped)
-    # Dropped rather than shown with a generated cover -- shipped the
-    # generated-cover version briefly (it fixed whole categories --
-    # Factly, Alt News, MyGov, Economic Times -- silently contributing
-    # zero cards), reverted on explicit user preference. Whole-category
-    # invisibility is a known, accepted tradeoff of reverting this, not
-    # an oversight -- see git history if this needs revisiting.
+    # No longer dropped. This filter existed because the card used to put
+    # the image in a top masthead band -- a missing image left a visibly
+    # broken-looking card, so whole categories (Factly, Alt News, MyGov,
+    # Economic Times) got silently zeroed out rather than shown with a
+    # generated cover (tried, reverted on explicit preference at the time).
+    # The card layout changed since: the image now sits below the text as
+    # a flexible band, and cardMarkup() already renders cleanly with none
+    # (media == ''). A text-only card is a normal card now, not a broken
+    # one, so the reason for dropping it is gone.
     no_image = len(deduped) - len([a for a in deduped if a.get("image")])
-    deduped = [a for a in deduped if a.get("image")]
     deduped.sort(
         key=lambda a: a["published"] or datetime.min.replace(tzinfo=timezone.utc),
         reverse=True,
@@ -2690,9 +2796,9 @@ def main() -> int:
         f"- {total_items} items visible right now across live feeds",
         f"- {len(stubs)} of {len(live)} live feeds are teaser-only "
         f"(<{STUB_THRESHOLD} chars) -> need article extraction",
-        f"- {len(all_articles)} articles -> {len(deduped) + no_image} after merging "
+        f"- {len(all_articles)} articles -> {len(deduped)} after merging "
         f"{merged} cross-agency duplicate{'s' if merged != 1 else ''}"
-        + (f", {no_image} dropped for having no image" if no_image else ""),
+        + (f" ({no_image} have no lead image, shown text-only)" if no_image else ""),
         f"- {sourced} feeds contributed to the {len(deck)}-card deck"
         + (f" ({dropped} older card{'s' if dropped != 1 else ''} not shown, DECK_LIMIT={DECK_LIMIT})" if dropped else ""),
         "",
@@ -2734,10 +2840,10 @@ def main() -> int:
 
     print(f"\nwrote {REPORT_MD.name} + {REPORT_JSON.name} + {REPORT_HTML.name}")
     print(f"  {len(live)}/{len(rows)} feeds graded OK, {sourced} contributed to the deck")
-    print(f"  {len(all_articles)} articles -> {len(deduped) + no_image} after merging "
+    print(f"  {len(all_articles)} articles -> {len(deduped)} after merging "
           f"{merged} cross-agency duplicate{'s' if merged != 1 else ''}")
     if no_image:
-        print(f"  {no_image} card{'s' if no_image != 1 else ''} dropped for having no image")
+        print(f"  {no_image} card{'s' if no_image != 1 else ''} have no lead image, shown text-only")
     if dropped:
         print(f"  deck capped at {DECK_LIMIT}: {dropped} older card"
               f"{'s' if dropped != 1 else ''} not shown (raise DECK_LIMIT to include them)")
