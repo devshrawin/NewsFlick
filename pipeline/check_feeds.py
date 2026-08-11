@@ -784,7 +784,12 @@ def render_html(articles: list) -> str:
   header {{
     position: sticky; top: 0; z-index: 20;
     background: var(--bg);
-    border-bottom: 3px double var(--ink);
+    /* The heavier double-rule masthead border is a desktop editorial touch
+       (see the >=900px override below) -- on a narrow phone screen, --ink
+       is near-white in dark mode, so the full 3px double rule plus the
+       progress rail right under it reads as one loud white bar. Plain and
+       thin here instead. */
+    border-bottom: 1px solid var(--line);
     /* viewport-fit=cover lets content draw under the notch/status bar, so
        the sticky header needs the safe-area inset added back in, not just
        the flat .7rem. */
@@ -813,8 +818,6 @@ def render_html(articles: list) -> str:
     font-family: var(--font-serif); font-size: 1.4rem; font-weight: 800; letter-spacing: -.02em;
   }}
   .brand-mark {{ width: 1.5rem; height: 1.5rem; flex: none; }}
-  .bar-right {{ display: none; align-items: center; margin-left: auto; }}
-  .theme-switch.header-switch {{ margin: 0; }}
   .ghost {{
     display: inline-flex; align-items: center; gap: .34rem;
     border: 1px solid var(--line-2); background: var(--glass-2); color: var(--sub);
@@ -1084,7 +1087,11 @@ def render_html(articles: list) -> str:
     font-family: var(--font-mono); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase;
     color: var(--bg); background: rgba(0,0,0,.55); padding: .22rem .45rem;
   }}
-  .body {{ flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 1.05rem 1.15rem 1.1rem; overflow-y: auto; }}
+  /* No overflow-y here on purpose: a scrollable body inside a
+     pointer-drag-driven card fights the swipe gesture and, on some
+     browsers, paints its own bulky native scrollbar over the card. The
+     parent .card already clips anything that doesn't fit. */
+  .body {{ flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 1.05rem 1.15rem 1.1rem; }}
   .metarow {{
     display: flex; align-items: center; justify-content: space-between; gap: .4rem;
     margin-bottom: .5rem; padding-bottom: .55rem; border-bottom: 1px solid var(--line);
@@ -1134,14 +1141,19 @@ def render_html(articles: list) -> str:
   .pill.lean::before {{
     content: ""; width: .32rem; height: .32rem; border-radius: 50%; background: var(--sub); flex: none;
   }}
+  /* No scrollbar on .body (see above), so headline/summary are clamped --
+     .card's own overflow:hidden would otherwise silently chop the foot
+     link off an oversized card instead of just trimming the text. */
   .card h2 {{
     margin: 0 0 .4rem; font-family: var(--font-serif); font-size: 1.4rem; line-height: 1.18;
     font-weight: 800; letter-spacing: -.02em;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }}
   .also {{ font-size: .72rem; color: var(--sub); margin: .7rem 0 0; padding-top: .6rem; border-top: 1px solid var(--line); font-style: italic; }}
   .also b {{ color: var(--ink); font-weight: 650; font-style: normal; }}
   .snip {{
     margin: 0; color: var(--sub); font-size: .875rem; line-height: 1.52;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }}
   .foot {{
     display: flex; align-items: center; justify-content: flex-start; gap: .6rem;
@@ -1319,7 +1331,7 @@ def render_html(articles: list) -> str:
   @media (min-width: 900px), (max-height: 480px) {{
     /* Wider editorial card, still a single text-first column with the lead
        image as a band near the bottom -- not a side-by-side layout. */
-    .stage {{ height: clamp(420px, 62vh, 620px); }}
+    .stage {{ height: clamp(420px, 62vh, 620px); margin-bottom: 2rem; }}
     .card {{ width: min(94%, 780px); }}
     .body {{ padding: 1.9rem 2.2rem 1.6rem; }}
     .card h2 {{ font-size: clamp(1.9rem, 2.6vw, 2.6rem); line-height: 1.08; }}
@@ -1330,7 +1342,7 @@ def render_html(articles: list) -> str:
   }}
 
   @media (min-width: 900px) {{
-    .bar-right {{ display: flex; }}
+    header {{ border-bottom: 3px double var(--ink); }}
     .layout {{ grid-template-columns: minmax(0, 1fr) 296px; gap: 2.25rem; }}
     .queue {{ display: block; position: sticky; top: 8.5rem; }}
   }}
@@ -1359,13 +1371,6 @@ def render_html(articles: list) -> str:
       <div class="brand">
         <img class="brand-mark" src="icon-192.png" alt="" width="192" height="192">
         NewsFlick
-      </div>
-      <div class="bar-right">
-        <div class="theme-switch header-switch" id="theme-switch-header" role="group" aria-label="Theme">
-          <button class="theme-opt" data-theme="light">Light</button>
-          <button class="theme-opt" data-theme="dark">Dark</button>
-          <button class="theme-opt" data-theme="auto">Auto</button>
-        </div>
       </div>
     </div>
     <div class="rail"><i id="rail"></i></div>
@@ -1398,15 +1403,6 @@ def render_html(articles: list) -> str:
           <nav class="chipwrap" id="topics" aria-label="Filter by topic"></nav>
         </div></div>
       </div>
-      <div class="section" id="section-sources">
-        <button class="section-head" data-toggle="section-sources">
-          <span class="t">Sources</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="section-panel"><div>
-          <nav class="chipwrap" id="sources" aria-label="Filter by source"></nav>
-        </div></div>
-      </div>
       <div class="section" id="section-regions">
         <button class="section-head" data-toggle="section-regions">
           <span class="t">World</span>
@@ -1414,6 +1410,15 @@ def render_html(articles: list) -> str:
         </button>
         <div class="section-panel"><div>
           <nav class="chipwrap" id="regions" aria-label="Filter by region"></nav>
+        </div></div>
+      </div>
+      <div class="section" id="section-sources">
+        <button class="section-head" data-toggle="section-sources">
+          <span class="t">Sources</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="section-panel"><div>
+          <nav class="chipwrap" id="sources" aria-label="Filter by source"></nav>
         </div></div>
       </div>
       <p class="drawer-footnote">Leaning shown on cards is from public ratings where available, hand-curated
