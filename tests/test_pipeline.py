@@ -298,6 +298,84 @@ def test_classify_region_keyword_wins_over_default():
     assert cf.classify_region("PM meets Chinese premier in Beijing", "", default_region="India") == "Asia"
 
 
+# ---------- source_bias.yaml: leaning (judgment) vs country/funding (facts) ----------
+
+def _write_bias(tmp_path, monkeypatch, body):
+    p = tmp_path / "source_bias.yaml"
+    p.write_text(body, encoding="utf-8")
+    monkeypatch.setattr(cf, "BIAS_FILE", p)
+    return p
+
+
+def test_load_bias_keeps_facts_only_entries(tmp_path, monkeypatch):
+    # The regression this guards: load_bias() used to gate on
+    # `entry.get("leaning")` and drop the row otherwise, which silently
+    # discarded every country/funding-only entry -- i.e. almost the whole
+    # file, since leaning is only set where a citation exists.
+    _write_bias(tmp_path, monkeypatch, """
+sources:
+  Facts Only: {country: India, funding: Private}
+""")
+    bias = cf.load_bias()
+    assert "Facts Only" in bias
+    assert bias["Facts Only"]["country"] == "India"
+    assert bias["Facts Only"]["funding"] == "Private"
+    # No citable rating -> must read as Not rated, never as a "Center" judgment.
+    assert bias["Facts Only"]["leaning"] == "Not rated"
+
+
+def test_load_bias_reads_all_three_fields(tmp_path, monkeypatch):
+    _write_bias(tmp_path, monkeypatch, """
+sources:
+  Full Entry:
+    leaning: Center
+    cite_name: AllSides
+    cite_url: https://example.com/rating
+    country: United Kingdom
+    funding: Public broadcaster
+""")
+    e = cf.load_bias()["Full Entry"]
+    assert (e["leaning"], e["cite_name"], e["country"], e["funding"]) == (
+        "Center", "AllSides", "United Kingdom", "Public broadcaster")
+
+
+def test_load_bias_skips_entries_with_no_usable_field(tmp_path, monkeypatch):
+    _write_bias(tmp_path, monkeypatch, """
+sources:
+  Empty Entry: {cite_name: Somebody}
+  Not A Dict: "just a string"
+""")
+    assert cf.load_bias() == {}
+
+
+def test_load_bias_missing_file_and_bad_yaml_are_not_errors(tmp_path, monkeypatch):
+    monkeypatch.setattr(cf, "BIAS_FILE", tmp_path / "nope.yaml")
+    assert cf.load_bias() == {}
+    _write_bias(tmp_path, monkeypatch, "sources: [unclosed\n")
+    assert cf.load_bias() == {}   # a bad hand-edit must not break the run
+
+
+def test_real_bias_file_covers_every_feed_and_never_guesses_leaning():
+    # Against the real files, not a fixture: every feed should carry the
+    # factual tags, and no source may claim a leaning without a citation.
+    import yaml as _yaml
+    feeds = [f["name"] for f in _yaml.safe_load(
+        (Path(cf.__file__).resolve().parent.parent / "feeds.yaml").read_text(encoding="utf-8")
+    )["feeds"]]
+    bias = cf.load_bias()
+
+    missing = [n for n in feeds if n not in bias]
+    assert not missing, f"feeds with no source_bias.yaml entry at all: {missing}"
+
+    no_funding = [n for n in feeds if not bias[n].get("funding")]
+    assert not no_funding, f"feeds with no funding fact: {no_funding}"
+
+    # leaning is a contestable claim -- it must always be cited.
+    uncited = [n for n, e in bias.items()
+               if e["leaning"] != cf.NOT_RATED["leaning"] and not e.get("cite_url")]
+    assert not uncited, f"leaning asserted with no citation: {uncited}"
+
+
 # ---------- article persistence + extraction (data/articles.jsonl) ----------
 
 def test_article_id_stable_and_falls_back_to_source_title():

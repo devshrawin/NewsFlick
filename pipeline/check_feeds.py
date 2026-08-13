@@ -37,7 +37,10 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 FEEDS_FILE = ROOT / "feeds.yaml"
 BIAS_FILE = ROOT / "source_bias.yaml"
-NOT_RATED = {"leaning": "Not rated", "cite_name": None, "cite_url": None}
+NOT_RATED = {
+    "leaning": "Not rated", "cite_name": None, "cite_url": None,
+    "country": None, "funding": None,
+}
 REPORT_MD = ROOT / "docs" / "feed_check.md"
 REPORT_JSON = ROOT / "docs" / "feed_check.json"
 REPORT_HTML = ROOT / "docs" / "index.html"
@@ -510,10 +513,19 @@ def load_feeds():
 
 
 def load_bias() -> dict:
-    """source name -> {leaning, cite_name, cite_url}. Never raises: this file
-    is meant to be incomplete and hand-edited, so a missing file or an
-    unlisted source both just fall back to Not rated rather than breaking
-    the run -- unlike load_feeds(), where a bad file is a real error."""
+    """source name -> {leaning, cite_name, cite_url, country, funding}. Never
+    raises: this file is meant to be incomplete and hand-edited, so a missing
+    file or an unlisted source both just fall back to the NOT_RATED defaults
+    rather than breaking the run -- unlike load_feeds(), where a bad file is
+    a real error.
+
+    Note the three fields are independent, and an entry is kept if it carries
+    *any* of them. This used to gate on `entry.get("leaning")` and drop the
+    row otherwise, which silently discarded every facts-only entry once
+    country/funding were added -- leaning is a contestable judgment that
+    stays absent unless citable, while country/funding are plain facts that
+    are filled in much more widely, so most rows now have no leaning at all.
+    """
     if not BIAS_FILE.exists():
         return {}
     try:
@@ -525,12 +537,17 @@ def load_bias() -> dict:
         return {}
     out = {}
     for name, entry in sources.items():
-        if isinstance(entry, dict) and entry.get("leaning"):
-            out[name] = {
-                "leaning": entry["leaning"],
-                "cite_name": entry.get("cite_name"),
-                "cite_url": entry.get("cite_url"),
-            }
+        if not isinstance(entry, dict):
+            continue
+        if not (entry.get("leaning") or entry.get("country") or entry.get("funding")):
+            continue
+        out[name] = {
+            "leaning": entry.get("leaning") or NOT_RATED["leaning"],
+            "cite_name": entry.get("cite_name"),
+            "cite_url": entry.get("cite_url"),
+            "country": entry.get("country"),
+            "funding": entry.get("funding"),
+        }
     return out
 
 
@@ -1003,6 +1020,11 @@ def render_html(articles: list) -> str:
             "leaning": bias.get(a["source"], NOT_RATED)["leaning"],
             "citeName": bias.get(a["source"], NOT_RATED)["cite_name"],
             "citeUrl": bias.get(a["source"], NOT_RATED)["cite_url"],
+            # Facts, unlike leaning -- see source_bias.yaml's header. Either
+            # can be None for a source whose value isn't confidently known;
+            # the card omits the tag rather than guessing.
+            "country": bias.get(a["source"], NOT_RATED).get("country"),
+            "funding": bias.get(a["source"], NOT_RATED).get("funding"),
             # Both set by main()'s apply_persistence() -- absent (None) only
             # if render_html() is ever called directly on articles that
             # skipped that step (e.g. a test fixture).
@@ -1542,6 +1564,25 @@ def render_html(articles: list) -> str:
   .metarow-actions {{ display: inline-flex; align-items: center; gap: .7rem; flex: none; }}
   .topicrow {{ display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin-bottom: .55rem; flex: none; }}
   .region-tag {{ font-family: var(--font-mono); font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: var(--sub); }}
+  /* Publisher facts (country flag, funding model) -- deliberately quieter
+     than the topic pill and visually distinct from .pill.lean, since these
+     are verifiable facts rather than the leaning pill's hand-curated
+     judgment. See source_bias.yaml's header for why one is which. */
+  .src-fact {{
+    font-family: var(--font-mono); font-size: .62rem; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--sub);
+    border: 1px solid var(--line); padding: .18rem .42rem;
+  }}
+  /* Country-code badge: inverted so it reads as a distinct origin marker at
+     a glance rather than as more grey metadata. */
+  .src-fact.cc {{
+    color: var(--bg); background: var(--sub); border-color: var(--sub);
+    font-weight: 700; letter-spacing: .1em;
+  }}
+  /* State-funded / public / government / intergovernmental -- "who pays for
+     this" is the part worth noticing, so it gets ink rather than grey.
+     Still not colour-coded: same neutrality rule as the leaning pill. */
+  .src-fact.notable {{ color: var(--ink); border-color: var(--line-2); font-weight: 700; }}
   .src {{
     display: inline-flex; align-items: center; gap: .5rem;
     font-size: .82rem; font-weight: 500; letter-spacing: -.005em; color: var(--ink);
@@ -1983,6 +2024,35 @@ def render_html(articles: list) -> str:
       out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg>'
     }};
 
+    // Publisher-country badge: a short country code, NOT a flag emoji.
+    // Flag emoji were tried first and don't work here -- Windows ships the
+    // individual regional-indicator letter glyphs in Segoe UI Emoji but not
+    // the ligatures that compose them into a flag, so Chromium on Windows
+    // renders "GB" letterforms (or boxes) instead of a flag, while
+    // macOS/iOS/Android show the real thing. A badge that only works on some
+    // of the reader's own devices isn't usable. Inline SVG flags were the
+    // other option and were rejected deliberately: of the countries here
+    // only Germany/France/Japan are simple enough to draw accurately, and a
+    // rough hand-approximation of a national flag looks cheap and
+    // misrepresents it.
+    //
+    // Keys must match source_bias.yaml's `country` values exactly; anything
+    // unmapped falls back to rendering the full name, so adding a country
+    // there without adding it here degrades gracefully instead of blanking.
+    var COUNTRY_CODES = {{
+      'India': 'IN',
+      'United States': 'US',
+      'United Kingdom': 'UK',
+      'Qatar': 'QA',
+      'Germany': 'DE',
+      'France': 'FR',
+      'Canada': 'CA',
+      'Australia': 'AU',
+      'Singapore': 'SG',
+      'Hong Kong': 'HK',
+      'Japan': 'JP'
+    }};
+
     var all = JSON.parse(document.getElementById('data').textContent);
     var stage = document.getElementById('stage');
     var topicsEl = document.getElementById('topics');
@@ -2292,6 +2362,26 @@ def render_html(articles: list) -> str:
           + '<span class="regmarks" aria-hidden="true"><i></i><i></i><i></i><i></i></span>'
         : '';
       var region = a.region ? '<span class="region-tag">' + esc(a.region) + '</span>' : '';
+      // Publisher facts (where it's based, how it's funded), distinct from
+      // a.region -- that's what the *story* is about, this is who wrote it.
+      // Both omitted when unknown; source_bias.yaml leaves a value out
+      // rather than guessing. Funding is highlighted when it's anything
+      // other than plain private ownership, since "who pays for this" is
+      // the part actually worth noticing.
+      // Short country code rather than the full name -- the topicrow is
+      // already busy. The full name ships as title + aria-label so it stays
+      // readable on hover and unambiguous to a screen reader ("IN" alone
+      // would be read as letters). Unmapped country falls back to its name.
+      var origin = '';
+      if (a.country) {{
+        var cc = COUNTRY_CODES[a.country];
+        origin = cc
+          ? '<span class="src-fact cc" title="' + esc(a.country) + '" aria-label="Published in ' + esc(a.country) + '">' + esc(cc) + '</span>'
+          : '<span class="src-fact">' + esc(a.country) + '</span>';
+      }}
+      var funding = a.funding
+        ? '<span class="src-fact' + (a.funding === 'Private' ? '' : ' notable') + '">' + esc(a.funding) + '</span>'
+        : '';
       // "Read here" only shows once main()'s apply_persistence() has
       // successfully extracted the full article text (fullText null until
       // then) -- opens an inline reader instead of leaving the app, distinct
@@ -2316,6 +2406,8 @@ def render_html(articles: list) -> str:
         +     topicPill
         +     lean
         +     region
+        +     origin
+        +     funding
         +   '</div>'
         +   '<h2>' + esc(a.title) + '</h2>'
         +   '<p class="snip">' + esc(a.snippet) + '</p>'

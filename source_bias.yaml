@@ -1,39 +1,164 @@
-# Political-leaning tag shown on cards (a tint + a small pill, e.g. "Lean
-# Left"). Self-curated, not an API -- no free, comprehensive, automatable
-# rating source exists for this, and the well-known Western media-bias
-# charts (AllSides, Ad Fontes) mostly don't cover Indian outlets at all.
+# Per-source metadata shown on cards. Despite the filename (kept so existing
+# tooling/links don't break) this now carries three independent things:
 #
-# leaning: Left | Lean Left | Center | Lean Right | Right | Not rated
-# cite_name/cite_url: optional. Omit both for "Not rated" (no pill shown,
-# no tint applied -- an unrated source should never look like it was
-# rated "neutral").
+#   leaning: Left | Lean Left | Center | Lean Right | Right   -- a JUDGMENT
+#   country: where the publication is primarily based/edited  -- a FACT
+#   funding: how it's funded/owned                            -- a FACT
 #
-# Every current feed defaults to "Not rated" below except a handful of
-# international outlets I'm confident enough to cite directly. Indian
-# outlets are left unrated on purpose -- this is edited by hand, and I'd
-# rather ship an honest gap than a guess about a real news organization's
-# politics. Fill these in yourself if you want fuller coverage; keep the
-# same leaning/cite_name/cite_url shape.
+# The split matters. `leaning` is a contestable claim about a real news
+# organization's politics, so it is only ever set where a public rating can
+# be cited (cite_name/cite_url), and stays absent otherwise -- an unrated
+# source must never render as a "Center" judgment. `country` and `funding`
+# are verifiable facts, so they can be filled in far more widely without
+# asserting anything arguable.
+#
+# Why this file is hand-written and not generated: automating it was tried
+# and measured, and it does not work.
+#   - Political leaning: Wikidata (the only free, CC0, automatable option)
+#     resolved only 5 of 15 real feed names to a unique news-organization
+#     entity -- 6 were ambiguous, 4 had no match -- and 0 of the 5 that did
+#     resolve carried a P1387 political-alignment value. A spot check with
+#     hardcoded QIDs resolved 3 of 5 to a *plant species* and a *biography
+#     database*, which is the real hazard: a bad match doesn't produce a
+#     blank, it produces a confident political claim about the wrong
+#     organization. AllSides/Ad Fontes/MBFC have no free API and near-zero
+#     Indian coverage, which is exactly where the gap is.
+#   - Country: 59 of 78 feeds are on .com/.org/.net, and several route via
+#     feedburner.com / go.com aggregators, so the feed domain often isn't
+#     the publisher's at all. TLD-based derivation is useless here.
+#
+# So: filled in by hand, once, from public fact. Where a value is genuinely
+# uncertain (an outlet whose editorial base I can't state confidently) the
+# key is LEFT OUT rather than guessed, and the card simply omits that tag --
+# the same honest-gap rule `leaning` already follows. Don't backfill these
+# with plausible-looking guesses; a blank is correct and a wrong fact isn't.
+#
+# funding values in use:
+#   Private              -- commercial/privately owned (the default case)
+#   Public broadcaster   -- publicly funded, editorially independent charter
+#   State-funded         -- funded by a national government
+#   Government           -- an actual government publication
+#   Intergovernmental    -- a multi-state body (WHO)
 
 sources:
+  # ---- rated leaning (public citation available) ----
   BBC World:
     leaning: Center
     cite_name: AllSides
     cite_url: https://www.allsides.com/news-source/bbc-news-media-bias
+    country: United Kingdom
+    funding: Public broadcaster
   BBC Asia:
     leaning: Center
     cite_name: AllSides
     cite_url: https://www.allsides.com/news-source/bbc-news-media-bias
+    country: United Kingdom
+    funding: Public broadcaster
   NPR:
     leaning: Lean Left
     cite_name: AllSides
     cite_url: https://www.allsides.com/news-source/npr-media-bias
+    country: United States
+    funding: Public broadcaster
   Al Jazeera:
     leaning: Lean Left
     cite_name: AllSides
     cite_url: https://www.allsides.com/news-source/al-jazeera-media-bias
+    country: Qatar
+    funding: State-funded
 
-  # Everything else -- Deutsche Welle, and every Indian national, regional,
-  # business, tech, sports, entertainment, government, and fact-check outlet
-  # in feeds.yaml -- is intentionally absent, which load_bias() treats the
-  # same as an unlisted future feed: "Not rated".
+  # ---- facts only, no leaning claim ----
+
+  # India -- national / regional
+  The Hindu: {country: India, funding: Private}
+  The Hindu (Top): {country: India, funding: Private}
+  The Hindu Health: {country: India, funding: Private}
+  Sportstar: {country: India, funding: Private}
+  Indian Express: {country: India, funding: Private}
+  Hindustan Times: {country: India, funding: Private}
+  Times of India: {country: India, funding: Private}
+  NDTV: {country: India, funding: Private}
+  News18: {country: India, funding: Private}
+  India Today: {country: India, funding: Private}
+  Free Press Journal: {country: India, funding: Private}
+  Deccan Chronicle: {country: India, funding: Private}
+  Greater Kashmir: {country: India, funding: Private}
+  Kashmir Observer: {country: India, funding: Private}
+  Rediff News: {country: India, funding: Private}
+
+  # India -- business / tech / entertainment / fact-check
+  Livemint: {country: India, funding: Private}
+  Economic Times: {country: India, funding: Private}
+  Moneycontrol: {country: India, funding: Private}
+  Medianama: {country: India, funding: Private}
+  Gadgets360: {country: India, funding: Private}
+  Beebom: {country: India, funding: Private}
+  Inc42: {country: India, funding: Private}
+  TechPP: {country: India, funding: Private}
+  Bollywood Hungama: {country: India, funding: Private}
+  Pinkvilla: {country: India, funding: Private}
+  Factly: {country: India, funding: Private}
+  Alt News: {country: India, funding: Private}
+  ESPN Cricinfo: {country: India, funding: Private}
+  MyGov India: {country: India, funding: Government}
+
+  # United States
+  CNBC: {country: United States, funding: Private}
+  Forbes: {country: United States, funding: Private}
+  Business Insider: {country: United States, funding: Private}
+  TechCrunch: {country: United States, funding: Private}
+  The Verge: {country: United States, funding: Private}
+  Ars Technica: {country: United States, funding: Private}
+  Wired: {country: United States, funding: Private}
+  Engadget: {country: United States, funding: Private}
+  ESPN: {country: United States, funding: Private}
+  Variety: {country: United States, funding: Private}
+  Hollywood Reporter: {country: United States, funding: Private}
+  Deadline: {country: United States, funding: Private}
+  Rolling Stone: {country: United States, funding: Private}
+  Snopes: {country: United States, funding: Private}
+  STAT News: {country: United States, funding: Private}
+  NPR Health: {country: United States, funding: Public broadcaster}
+  NPR World: {country: United States, funding: Public broadcaster}
+  New York Times World: {country: United States, funding: Private}
+  New York Times Home: {country: United States, funding: Private}
+  Washington Post World: {country: United States, funding: Private}
+  Washington Post National: {country: United States, funding: Private}
+  ABC News (US): {country: United States, funding: Private}
+  Vox: {country: United States, funding: Private}
+  The Atlantic: {country: United States, funding: Private}
+  Axios: {country: United States, funding: Private}
+  The Hill: {country: United States, funding: Private}
+
+  # United Kingdom
+  BBC Sport: {country: United Kingdom, funding: Public broadcaster}
+  BBC Africa: {country: United Kingdom, funding: Public broadcaster}
+  Sky Sports: {country: United Kingdom, funding: Private}
+  Sky News: {country: United Kingdom, funding: Private}
+  The Guardian World: {country: United Kingdom, funding: Private}
+  The Guardian India: {country: United Kingdom, funding: Private}
+  The Independent: {country: United Kingdom, funding: Private}
+
+  # Rest of world
+  Deutsche Welle: {country: Germany, funding: State-funded}
+  France 24 English: {country: France, funding: State-funded}
+  Euronews English: {country: France, funding: Private}
+  CBC News: {country: Canada, funding: Public broadcaster}
+  ABC News Australia: {country: Australia, funding: Public broadcaster}
+  Channel News Asia: {country: Singapore, funding: State-funded}
+  Straits Times: {country: Singapore, funding: Private}
+  South China Morning Post: {country: Hong Kong, funding: Private}
+  Japan Times: {country: Japan, funding: Private}
+  Middle East Eye: {country: United Kingdom, funding: Private}
+  # country deliberately omitted on both of these -- see the note below.
+  WHO News: {funding: Intergovernmental}
+  AllAfrica: {funding: Private}
+
+  # Deliberately absent values, not oversights:
+  #   AllAfrica -- registered in the US but operating out of Cape Town and
+  #     Dakar as a pan-African aggregator; no single country is honest here,
+  #     so `country` is omitted and only the card's other tags show.
+  #   WHO News -- a UN agency, not a country's publication, so `country` is
+  #     omitted while `funding` is meaningful.
+  # Every source absent entirely (and every future feed) resolves to
+  # "Not rated" with no leaning pill and no country/funding tags.
