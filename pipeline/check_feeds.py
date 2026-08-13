@@ -1586,6 +1586,30 @@ def render_html(articles: list) -> str:
     header {{ border-bottom: 3px double var(--ink); }}
     .layout {{ grid-template-columns: minmax(0, 1fr) 296px; gap: 2.25rem; }}
     .queue {{ display: block; position: sticky; top: 8.5rem; }}
+    /* Desktop only, deliberately not the (max-height:480px) mobile-landscape
+       fallback above -- that one keeps the flexible fill-leftover-space
+       band untouched. Measured why: object-fit:cover on a fill-the-
+       leftover-space band crops a typical 16:9 news photo's height by
+       34-49% depending on how much text sits above it (varies per card,
+       unpredictably) -- confirmed both by the crop-fraction math and a
+       visual survey against image-left/image-right column layouts (which
+       crop *worse*, 60%+ of width, since a narrow tall column is an even
+       worse aspect match for a landscape photo). Locking the band to the
+       photo's own aspect ratio instead of the leftover space crops nothing
+       at all. 16/9 as a fixed value, not `auto` from the image's real
+       dimensions, since CSS aspect-ratio can't be set per-image from a URL
+       string alone -- 16:9 is the closest single ratio to what these feeds
+       actually send. */
+    /* max-height is a safety net, not the normal case: a card with a full
+       3-line headline + 3-line summary can exceed the fixed .stage height
+       once the image band is locked to its full 16:9 height, and .card's
+       own overflow:hidden would hard-clip the image at the card edge --
+       worse than the controlled cover-crop this change is meant to avoid.
+       Rare in practice (real headlines are usually shorter than the
+       synthetic worst-case fixture this was caught with), so most cards
+       still show the full, uncropped photo; only the pathological case
+       falls back to a capped, cropped band. */
+    .media {{ flex: none; height: auto; max-height: 55%; aspect-ratio: 16 / 9; }}
   }}
 
   @media (prefers-reduced-motion: reduce) {{

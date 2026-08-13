@@ -90,16 +90,48 @@ jobs:
             else
               git commit -m "feed check $(date -u '+%Y-%m-%d %H:%M')"
               # Push directly. Only if that's rejected do we rebase and
-              # retry once. An unconditional 'git pull --rebase' here is
-              # what silently swallowed the push in testing, leaving a
-              # green job with no report delivered.
-              if ! git push origin "HEAD:${GITHUB_REF_NAME}"; then
-                echo "Push rejected — rebasing onto origin/${GITHUB_REF_NAME} and retrying."
+              # retry. An unconditional 'git pull --rebase' here is what
+              # silently swallowed the push in testing, leaving a green
+              # job with no report delivered.
+              #
+              # A single rebase-and-retry (the original design here) isn't
+              # enough: a real *conflict* -- not just a clean fast-forward
+              # rebase -- leaves 'git rebase' exiting non-zero with the
+              # working tree mid-rebase. The next `git push` after that
+              # fails too (nothing valid to push), and every later loop
+              # iteration's `git commit` then fails as well, since a
+              # mid-rebase tree won't take a normal commit -- silently
+              # killing the rest of this job's 5h20m budget with nothing
+              # in the log past "push rejected" (this is exactly what
+              # happened on 2026-08-13: a run died at the first conflict
+              # and nothing else landed until the next 6-hourly restart).
+              # Retry a few times, and on a real conflict abort the rebase
+              # and hard-reset to origin rather than leave a half-rebased
+              # tree behind -- safe because this loop is stateless, each
+              # iteration regenerates docs/+data/ from scratch, so losing
+              # one iteration's commit to a collision is fine; a broken
+              # git state for the rest of the job is not.
+              pushed=0
+              for attempt in 1 2 3; do
+                if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+                  pushed=1
+                  break
+                fi
+                echo "Push rejected (attempt ${attempt}/3) — rebasing onto origin/${GITHUB_REF_NAME}."
                 git fetch origin "${GITHUB_REF_NAME}"
-                git rebase "origin/${GITHUB_REF_NAME}"
-                git push origin "HEAD:${GITHUB_REF_NAME}"
+                if ! git rebase "origin/${GITHUB_REF_NAME}"; then
+                  echo "::warning::Rebase conflict on attempt ${attempt}/3 -- aborting rebase and resetting to origin. This iteration's report is dropped, not stuck; the next iteration regenerates it."
+                  git rebase --abort || true
+                  git reset --hard "origin/${GITHUB_REF_NAME}"
+                  break
+                fi
+                sleep 5
+              done
+              if [ "$pushed" -eq 1 ]; then
+                echo "Report pushed."
+              else
+                echo "::warning::Could not push this iteration's report after retries -- will try again next iteration."
               fi
-              echo "Report pushed."
             fi
 
             NOW=$(date +%s)
