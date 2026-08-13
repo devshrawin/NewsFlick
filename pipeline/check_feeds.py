@@ -124,7 +124,10 @@ def fetch(url: str):
                 allow_redirects=True,
                 stream=True,
             )
-            # Buffer at most MAX_BYTES, then drop the connection.
+            # Buffer at most MAX_BYTES, then drop the connection. Flagged on
+            # the response (not just silently truncated) so check() can
+            # surface it in the row's note -- a feed cut off mid-XML parses
+            # with fewer entries or a bozo warning and nothing said why.
             chunks, total = [], 0
             for chunk in resp.iter_content(65536):
                 chunks.append(chunk)
@@ -132,6 +135,7 @@ def fetch(url: str):
                 if total > MAX_BYTES:
                     break
             resp._newsdigest_body = b"".join(chunks)
+            resp._newsdigest_truncated = total > MAX_BYTES
             resp.close()
         except requests.RequestException as exc:
             last = (None, type(exc).__name__)
@@ -392,9 +396,10 @@ def check(name: str, url: str, default_region: str | None = None):
     bozo_note = ""
     if getattr(parsed, "bozo", 0) and entries:
         bozo_note = f"malformed XML ({type(parsed.get('bozo_exception')).__name__})"
+    truncated_note = f"truncated at {MAX_BYTES // (1024 * 1024)}MB" if getattr(resp, "_newsdigest_truncated", False) else ""
     row["entries"] = len(entries)
     if not entries:
-        row["note"] = "0 entries (not a feed? moved?)"
+        row["note"] = "0 entries (not a feed? moved?)" + (f", {truncated_note}" if truncated_note else "")
         return row, articles
 
     bodies = [entry_body(e) for e in entries]
@@ -409,7 +414,7 @@ def check(name: str, url: str, default_region: str | None = None):
         )
 
     row["ok"] = True
-    notes = [n for n in (note, bozo_note) if n]
+    notes = [n for n in (note, bozo_note, truncated_note) if n]
     if resp.url.rstrip("/") != url.rstrip("/"):
         notes.append(f"redirected -> {resp.url}")
     row["note"] = "; ".join(notes)
@@ -496,12 +501,6 @@ def load_bias() -> dict:
                 "cite_url": entry.get("cite_url"),
             }
     return out
-
-
-def source_hue(name: str) -> int:
-    """Deterministic accent hue per source, so the same publisher always
-    gets the same badge color across runs."""
-    return (sum(ord(c) for c in name) * 47) % 360
 
 
 def source_initials(name: str) -> str:
@@ -730,7 +729,6 @@ def render_html(articles: list) -> str:
             "topic": a.get("topic", "General"),
             "region": a.get("region", "Other"),
             "published": a["published"].isoformat() if a["published"] else None,
-            "hue": source_hue(a["source"]),
             "initials": source_initials(a["source"]),
             "alsoFrom": a.get("also_from", []),
             "leaning": bias.get(a["source"], NOT_RATED)["leaning"],
@@ -751,7 +749,8 @@ def render_html(articles: list) -> str:
 <meta name="description" content="A swipeable digest of Indian news, rebuilt every hour.">
 <title>NewsFlick</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#141310">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141310">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f1e8">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -1665,8 +1664,6 @@ def render_html(articles: list) -> str:
     var sources = Array.from(new Set(all.map(function (a) {{ return a.source; }}))).sort();
     var topics = Array.from(new Set(all.map(function (a) {{ return a.topic; }}))).sort();
     var regions = Array.from(new Set(all.map(function (a) {{ return a.region; }}))).sort();
-    var hueOf = {{}};
-    all.forEach(function (a) {{ if (!(a.source in hueOf)) hueOf[a.source] = a.hue; }});
 
     // Saved ids accumulate across hourly rebuilds, but only ids still in this
     // snapshot can ever be shown -- so the chip counted articles the Saved
@@ -1748,9 +1745,9 @@ def render_html(articles: list) -> str:
     // goes through esc(). Two different escaping rules on two adjacent
     // params is exactly the kind of thing that reads as a mistake to the
     // next person touching this; it isn't, but say so.
-    function chip(labelHtml, attr, val, on, hue, i, disabled) {{
+    function chip(labelHtml, attr, val, on, i, disabled) {{
       return '<button class="chip' + (on ? ' on' : '') + '" ' + attr + '="' + esc(val) + '"'
-        + ' style="--i:' + i + (hue === undefined ? '' : ';--hue:' + hue) + '"'
+        + ' style="--i:' + i + '"'
         + (disabled ? ' disabled' : '')
         + ' aria-pressed="' + (on ? 'true' : 'false') + '">' + labelHtml + '</button>';
     }}
@@ -1760,9 +1757,9 @@ def render_html(articles: list) -> str:
     // so toggling in either place has to re-render both).
     function renderInterestChipsInto(el) {{
       if (!el) return;
-      var h = chip('All topics', 'data-t', 'all', interests.size === 0, undefined, 0);
+      var h = chip('All topics', 'data-t', 'all', interests.size === 0, 0);
       topics.forEach(function (t, i) {{
-        h += chip(esc(t), 'data-t', t, interests.has(t), undefined, i + 1);
+        h += chip(esc(t), 'data-t', t, interests.has(t), i + 1);
       }});
       el.innerHTML = h;
     }}
@@ -1858,10 +1855,10 @@ def render_html(articles: list) -> str:
         var da = counts[a] === 0, db = counts[b] === 0;
         return da === db ? 0 : da ? 1 : -1;
       }});
-      var h = chip('All', 'data-f', 'all', sourceFilter === 'all', undefined, 0);
-      h += chip(ICON.star, 'data-f', '__saved__', sourceFilter === '__saved__', undefined, 1, savedCount === 0 && sourceFilter !== '__saved__');
+      var h = chip('All', 'data-f', 'all', sourceFilter === 'all', 0);
+      h += chip(ICON.star, 'data-f', '__saved__', sourceFilter === '__saved__', 1, savedCount === 0 && sourceFilter !== '__saved__');
       ordered.forEach(function (s, i) {{
-        h += chip(esc(s), 'data-f', s, sourceFilter === s, hueOf[s], i + 2, counts[s] === 0 && sourceFilter !== s);
+        h += chip(esc(s), 'data-f', s, sourceFilter === s, i + 2, counts[s] === 0 && sourceFilter !== s);
       }});
       sourcesEl.innerHTML = h;
       // The star glyph inside a chip must not swallow the click target.
@@ -1873,9 +1870,9 @@ def render_html(articles: list) -> str:
     // Continent/region -- orthogonal to Interests (subject) and Sources
     // (publisher). Single-select like Sources: a story is set in one place.
     function renderRegions() {{
-      var h = chip('All', 'data-r', 'all', regionFilter === 'all', undefined, 0);
+      var h = chip('All', 'data-r', 'all', regionFilter === 'all', 0);
       regions.forEach(function (r, i) {{
-        h += chip(esc(r), 'data-r', r, regionFilter === r, undefined, i + 1);
+        h += chip(esc(r), 'data-r', r, regionFilter === r, i + 1);
       }});
       regionsEl.innerHTML = h;
     }}
@@ -1941,7 +1938,6 @@ def render_html(articles: list) -> str:
     function buildCardEl(a, stackI) {{
       var el = document.createElement('article');
       el.className = 'card' + (stackI === 0 ? ' top' : '');
-      el.style.setProperty('--hue', a.hue);
       el.style.setProperty('--i', stackI);
       el.style.zIndex = String(10 - stackI);
       el.dataset.id = a.id;
@@ -2086,7 +2082,7 @@ def render_html(articles: list) -> str:
         var thumb = img
           ? '<img alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(img) + '">'
           : esc(a.initials);
-        return '<button class="qi" data-jump="' + esc(a.id) + '" style="--hue:' + a.hue + ';--i:' + i + '">'
+        return '<button class="qi" data-jump="' + esc(a.id) + '" style="--i:' + i + '">'
           + '<span class="thumb">' + thumb + '</span>'
           + '<span><span class="s">' + esc(a.source) + ' &middot; ' + esc(relTime(a.published)) + '</span>'
           + '<span class="t">' + esc(a.title) + '</span></span></button>';
@@ -2276,86 +2272,94 @@ def render_html(articles: list) -> str:
       }});
     }}
 
+    // Pulls the live theme's actual colors instead of hardcoding the old
+    // dark-glass palette, so the exported PNG matches whatever's on screen
+    // (light or dark) rather than a fixed identity the redesign moved past.
+    function shareColors() {{
+      var cs = getComputedStyle(document.documentElement);
+      var v = function (name, fallback) {{
+        var val = cs.getPropertyValue(name).trim();
+        return val || fallback;
+      }};
+      return {{
+        bg: v('--bg', '#f4f1e8'), ink: v('--ink', '#17150f'),
+        sub: v('--sub', '#5c574a'), line: v('--line', '#d8d3c3'),
+        accent: v('--accent', '#a33f22'),
+      }};
+    }}
+
+    // Editorial layout, matching the real card: photo on top (clean, no
+    // dark scrim baked over it -- this isn't the old overlay style), then a
+    // solid text panel below with the same masthead double-rule, ink
+    // avatar + serif initial, and CMYK registration dots as the live UI.
     function buildShareCanvas(a, img) {{
       var W = SHARE_W, H = SHARE_H, pad = 56;
       var canvas = document.createElement('canvas');
       canvas.width = W; canvas.height = H;
       var ctx = canvas.getContext('2d');
+      var c = shareColors();
+      var photoH = Math.round(H * 0.46);
 
-      ctx.fillStyle = '#111319';
+      ctx.fillStyle = c.bg;
       ctx.fillRect(0, 0, W, H);
-      drawCover(ctx, img, 0, 0, W, H);
-
-      // Dark scrim at top (keeps the source badge legible) and bottom (keeps
-      // the headline/summary legible) regardless of how bright the photo is.
-      var top = ctx.createLinearGradient(0, 0, 0, 200);
-      top.addColorStop(0, 'rgba(0,0,0,.6)'); top.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = top; ctx.fillRect(0, 0, W, 200);
-
-      var bottom = ctx.createLinearGradient(0, H * 0.42, 0, H);
-      bottom.addColorStop(0, 'rgba(6,7,10,0)');
-      bottom.addColorStop(.55, 'rgba(6,7,10,.74)');
-      bottom.addColorStop(1, 'rgba(6,7,10,.95)');
-      ctx.fillStyle = bottom; ctx.fillRect(0, H * 0.42, W, H * 0.58);
-
-      // Source avatar + name, top-left.
-      var hue = a.hue || 248;
-      ctx.save();
-      ctx.beginPath(); ctx.arc(pad + 28, pad + 28, 28, 0, Math.PI * 2);
-      var av = ctx.createLinearGradient(pad, pad, pad + 56, pad + 56);
-      av.addColorStop(0, 'hsl(' + hue + ',62%,56%)');
-      av.addColorStop(1, 'hsl(' + (hue + 30) + ',62%,46%)');
-      ctx.fillStyle = av; ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.font = '700 24px ui-sans-serif, system-ui, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(a.initials || '').slice(0, 2).toUpperCase(), pad + 28, pad + 30);
-      ctx.restore();
-
-      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#fff';
-      ctx.font = '700 30px ui-sans-serif, system-ui, sans-serif';
-      ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 10;
-      ctx.fillText(a.source || '', pad + 70, pad + 29);
-      ctx.shadowBlur = 0;
-
+      drawCover(ctx, img, 0, 0, W, photoH);
       drawTopRightIcons(ctx, W - pad - 30, pad + 28);
 
-      // Everything below flows top-down from a fixed block start near the
-      // bottom -- generous enough that a worst-case 3-line headline plus a
-      // 2-line summary never reaches the footer reserved beneath it.
-      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-      var y = H - 470;
+      // Double-rule seam between photo and text panel -- same motif as the
+      // masthead border and the "Also covered by" divider in the real card.
+      ctx.fillStyle = c.ink;
+      ctx.fillRect(0, photoH, W, 3);
+      ctx.fillRect(0, photoH + 9, W, 3);
+
+      var y = photoH + 48;
+
+      // Source avatar (ink square, serif initial) + name.
+      ctx.fillStyle = c.ink;
+      ctx.fillRect(pad, y, 56, 56);
+      ctx.fillStyle = c.bg;
+      ctx.font = '800 26px Spectral, Georgia, serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(a.initials || '').slice(0, 2).toUpperCase(), pad + 28, y + 28);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+
+      ctx.fillStyle = c.ink;
+      ctx.font = '700 30px Archivo, ui-sans-serif, system-ui, sans-serif';
+      ctx.fillText(a.source || '', pad + 74, y + 37);
+      y += 56 + 40;
 
       var topicText = String(a.topic || '').toUpperCase();
       if (topicText) {{
-        ctx.font = '700 24px ui-sans-serif, system-ui, sans-serif';
+        ctx.font = '700 22px Archivo, ui-sans-serif, system-ui, sans-serif';
         var topicW = ctx.measureText(topicText).width;
-        roundRectPath(ctx, pad, y, topicW + 34, 48, 24);
-        ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle';
-        ctx.fillText(topicText, pad + 17, y + 25);
-        ctx.textBaseline = 'top';
+        ctx.fillStyle = c.ink;
+        ctx.fillRect(pad, y, topicW + 32, 44);
+        ctx.fillStyle = c.bg;
+        ctx.textBaseline = 'middle';
+        ctx.fillText(topicText, pad + 16, y + 23);
+        ctx.textBaseline = 'alphabetic';
+        // Four print-registration dots, same K/Y/M/C as the card's topic pill.
+        var dotX = pad + topicW + 32 + 22, dotY = y + 22;
+        [['#17150f', 0], ['#ffd400', 14], ['#ec1c5c', 28], ['#00aeef', 42]].forEach(function (d) {{
+          ctx.beginPath(); ctx.fillStyle = d[0];
+          ctx.arc(dotX + d[1], dotY, 5, 0, Math.PI * 2); ctx.fill();
+        }});
       }}
-      y += 48 + 22;
+      y += 44 + 36;
 
-      ctx.font = '800 56px ui-sans-serif, system-ui, sans-serif';
-      ctx.fillStyle = '#fff';
-      ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 14;
+      ctx.font = '800 54px Spectral, Georgia, serif';
+      ctx.fillStyle = c.ink;
       var headlineLines = wrapLines(ctx, a.title, W - pad * 2, 3);
-      headlineLines.forEach(function (line, i) {{ ctx.fillText(line, pad, y + i * 64); }});
-      y += headlineLines.length * 64 + 20;
+      headlineLines.forEach(function (line, i) {{ ctx.fillText(line, pad, y + i * 62); }});
+      y += headlineLines.length * 62 + 26;
 
-      ctx.font = '400 34px ui-sans-serif, system-ui, sans-serif';
-      ctx.fillStyle = 'rgba(255,255,255,.86)';
-      ctx.shadowBlur = 8;
+      ctx.font = '400 32px Spectral, Georgia, serif';
+      ctx.fillStyle = c.sub;
       var summaryLines = wrapLines(ctx, a.snippet, W - pad * 2, 2);
-      summaryLines.forEach(function (line, i) {{ ctx.fillText(line, pad, y + i * 44); }});
-      ctx.shadowBlur = 0;
+      summaryLines.forEach(function (line, i) {{ ctx.fillText(line, pad, y + i * 42); }});
 
-      ctx.font = '600 24px ui-sans-serif, system-ui, sans-serif';
-      ctx.fillStyle = 'rgba(255,255,255,.62)';
-      ctx.fillText('NewsFlick', pad, H - pad - 24);
+      ctx.font = '600 24px Archivo, ui-sans-serif, system-ui, sans-serif';
+      ctx.fillStyle = c.sub;
+      ctx.fillText('NewsFlick', pad, H - pad + 4);
 
       return canvas;
     }}
@@ -2610,6 +2614,14 @@ def render_html(articles: list) -> str:
        off with higher specificity than that media query) ---------- */
     var THEME_KEY = 'newsdigest:theme';
     var themeSwitches = document.querySelectorAll('.theme-switch');
+    // The two media-scoped <meta name="theme-color"> tags in <head> already
+    // cover "Auto" (they just follow the OS). An explicit Light/Dark pick
+    // overrides the CSS via [data-theme], but a <meta> tag can't be scoped
+    // to an attribute selector -- so mirror the explicit choice onto both
+    // tags directly here, or the browser chrome (status bar/task switcher)
+    // would keep following the OS regardless of what the user picked.
+    var themeColorMetas = document.querySelectorAll('meta[name="theme-color"]');
+    var THEME_COLOR = {{ dark: '#141310', light: '#f4f1e8' }};
     function applyTheme(mode) {{
       if (mode === 'light' || mode === 'dark') document.documentElement.dataset.theme = mode;
       else delete document.documentElement.dataset.theme;
@@ -2617,6 +2629,13 @@ def render_html(articles: list) -> str:
         sw.querySelectorAll('.theme-opt').forEach(function (b) {{
           b.classList.toggle('on', b.dataset.theme === mode);
         }});
+      }});
+      themeColorMetas.forEach(function (m) {{
+        if (mode === 'light' || mode === 'dark') {{
+          m.setAttribute('content', THEME_COLOR[mode]);
+        }} else {{
+          m.setAttribute('content', THEME_COLOR[m.media.indexOf('dark') > -1 ? 'dark' : 'light']);
+        }}
       }});
     }}
     var savedTheme = 'auto';
@@ -2762,6 +2781,13 @@ def main() -> int:
     live = [r for r in rows if r["verdict"] == "OK"]
     stubs = [r for r in live if r["median_chars"] < STUB_THRESHOLD]
     total_items = sum(r["entries"] for r in live)
+    # Distinct from `live` on purpose: `r["ok"]` (parseable entries, 200
+    # status) is true for STALE/FUTURE/NO-DATES feeds too, only DEAD sets it
+    # false -- and main()'s loop above feeds all_articles from every `ok`
+    # row, not just verdict=="OK" ones. Reported separately so "N/M feeds
+    # usable" and "articles came from N feeds" don't silently describe two
+    # different populations under similar-sounding labels.
+    contributing = len([r for r in rows if r["ok"]])
 
     # Deck-building happens here, before feed_check.md is assembled, so its
     # stats (merges/no-image/deck-limit drops) can land in the report's
@@ -2796,8 +2822,9 @@ def main() -> int:
         f"- {total_items} items visible right now across live feeds",
         f"- {len(stubs)} of {len(live)} live feeds are teaser-only "
         f"(<{STUB_THRESHOLD} chars) -> need article extraction",
-        f"- {len(all_articles)} articles -> {len(deduped)} after merging "
-        f"{merged} cross-agency duplicate{'s' if merged != 1 else ''}"
+        f"- {len(all_articles)} articles from {contributing} feeds "
+        f"(includes STALE/FUTURE/NO DATES, not just the {len(live)} graded OK) "
+        f"-> {len(deduped)} after merging {merged} cross-agency duplicate{'s' if merged != 1 else ''}"
         + (f" ({no_image} have no lead image, shown text-only)" if no_image else ""),
         f"- {sourced} feeds contributed to the {len(deck)}-card deck"
         + (f" ({dropped} older card{'s' if dropped != 1 else ''} not shown, DECK_LIMIT={DECK_LIMIT})" if dropped else ""),
@@ -2839,7 +2866,7 @@ def main() -> int:
     REPORT_HTML.write_text(render_html(deck), encoding="utf-8")
 
     print(f"\nwrote {REPORT_MD.name} + {REPORT_JSON.name} + {REPORT_HTML.name}")
-    print(f"  {len(live)}/{len(rows)} feeds graded OK, {sourced} contributed to the deck")
+    print(f"  {len(live)}/{len(rows)} feeds graded OK, {contributing} contributed articles, {sourced} made the deck")
     print(f"  {len(all_articles)} articles -> {len(deduped)} after merging "
           f"{merged} cross-agency duplicate{'s' if merged != 1 else ''}")
     if no_image:

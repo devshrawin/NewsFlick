@@ -4,39 +4,51 @@
 GitHub URL are unchanged to avoid breaking existing users' saved data and
 links; this is a display-name rebrand only.)
 
-Two-week experiment: can an automated pipeline cluster India news feeds by
-story and summarise each cluster well enough to be worth reading?
+**What this actually is, honestly:** started as a two-week experiment in
+clustering India news feeds by story and auto-summarising them. The
+clustering/summarising stages below were never built. What exists instead —
+the feed-check + swipeable card deck, originally meant as a throwaway
+validation tool — absorbed essentially all the effort and is the real
+product: a personal, editorial-styled news reader, self-updating every
+~45 minutes, no backend beyond a GitHub Actions job and a static page. The
+"Pass marks" and "Stages" sections below are kept as a record of the
+original goal and an honest admission that it isn't what got built — not
+a claim that it's in progress.
 
-No backend, no database server. A SQLite file, a GitHub Actions workflow, and
-a static page on GitHub Pages. If the clustering and the summaries aren't
-good, that's a two-weekend loss instead of a two-month one.
+No backend, no database server, no build step. A GitHub Actions workflow and
+a static page on GitHub Pages. `pipeline/db.py`/`schema.sql` exist as a
+forward-looking design for the clustering stages *if* that work ever
+resumes — they are not wired into anything today; nothing is persisted
+between runs (see "Known gaps" below).
 
-Right now, before clustering/summarising exist, the feed-check stage already
-produces something worth using on its own: a swipeable card deck
-(`docs/index.html`, published via Pages) of every article the live feeds
-are currently carrying — title, source, time, a snippet, and a lead image
-where the feed has one. Drag or use the arrow keys to move between articles;
-tap "Read full article" to open one. Dark by default (light only if the
-browser explicitly asks for it). A hamburger button opens a collapsible left
-drawer holding two independently-foldable sections: **Interests**, a
-multi-select topic filter (pick as many as you like, or none to see
-everything), and **Sources**, single-select as before. First-time visitors
-get a one-time "what do you want to see" form for Interests; skip it or
-revisit it anytime from the drawer — both write to the same
-`localStorage`-backed selection. Cards also carry a political-leaning pill
-and a faint background tint where a source has one (`source_bias.yaml`,
-hand-curated, cited where it comes from a public rating like AllSides —
-most sources, especially Indian ones, are honestly "Not rated" rather than
-guessed at). On desktop, cards go landscape (image beside text) instead of
-mobile's tall stacked layout. Near-duplicate headlines from different
-agencies merge into one card, and each card has a save-for-later star and a
-share button (deep-links back to that exact card on our own page, not the
-source, so the digest itself stays visible when shared). The workflow runs
-hourly on its own, or on demand from the Actions tab. That's all a byproduct of
-validating the feeds, not the end goal — see Pass marks below for what
-actually decides if this experiment succeeds.
+The deck (`docs/index.html`, published via Pages) shows every article the
+live feeds are currently carrying — title, source, a snippet, and a lead
+image where the feed has one, image now rendered below the headline/summary
+rather than as a top masthead band. Drag or use the arrow keys to move
+between articles; tap "Read full article" (top-right of each card) to open
+one. Dark by default (light only if the browser explicitly asks for it, or
+the user picks Light/Dark/Auto from the drawer). A hamburger button opens a
+collapsible left drawer holding three independently-foldable sections, in
+order: **Interests** (multi-select topic filter, pick as many as you like or
+none to see everything), **World** (single-select region/continent filter),
+and **Sources** (single-select; a source with zero results under the
+current Interests/World filters greys out instead of leading to an empty
+view). First-time visitors get a one-time "what do you want to see" form for
+Interests; skip it or revisit it anytime from the drawer — both write to the
+same `localStorage`-backed selection. Cards carry a political-leaning pill
+where a source has one (`source_bias.yaml`, hand-curated, cited where it
+comes from a public rating like AllSides — most sources, especially Indian
+ones, are honestly "Not rated" rather than guessed at); no background tint,
+by design (see the leaning audit note below). Near-duplicate headlines from
+different agencies merge into one card (see "Dedupe performance" below —
+this used to be the pipeline's dominant cost), and each card has a
+save-for-later star and a share button (deep-links back to that exact card
+on our own page, not the source, so the digest itself stays visible when
+shared; the exported share image mirrors whatever theme — light or dark —
+is active). The workflow runs every ~45 minutes on its own, or on demand
+from the Actions tab.
 
-## Pass marks (fixed before the build, so they can't be rationalised later)
+## Pass marks (the original goal, not what shipped — kept as a record)
 
 | | Bar |
 |---|---|
@@ -44,26 +56,50 @@ actually decides if this experiment succeeds.
 | Summaries | 75% self-sufficient — you'd act on it without opening the source |
 | The real one | On day 12, do you open the digest without forcing yourself? |
 
-## Stages
+Neither Clustering nor Summaries exist. The deck gets opened daily, which is
+the only one of these three actually answered.
+
+## Stages (the original plan — only the first is built)
 
 ```
 ingest -> extract -> embed -> cluster -> summarise -> digest
 ```
 
-Each stage is independently re-runnable. Raw text is fetched once and never
-re-fetched; re-clustering at a new threshold touches only the cluster tables.
-That keeps the tuning loop at seconds rather than minutes.
+Each stage was meant to be independently re-runnable, with raw text fetched
+once and never re-fetched, so re-clustering at a new threshold would touch
+only the cluster tables. `schema.sql` is designed around this. None of it is
+wired up — every run re-fetches all feeds from scratch and keeps nothing.
 
 ## Status
 
 - [x] Feed health check
-- [x] Schema
-- [x] Article deck (swipeable viewer, published via Pages) — validation tool, not the deliverable
+- [ ] Schema — designed (`pipeline/schema.sql`), not wired into anything
+- [x] Article deck (swipeable viewer, published via Pages) — this is the actual product now
+- [ ] Persistence (see "Known gaps" — blocks everything below)
 - [ ] Ingest + extraction
 - [ ] Golden set (hand-labelled day one)
 - [ ] Embed + cluster
 - [ ] Summarise
 - [ ] Daily digest
+
+## Known gaps (largest first)
+
+- **Nothing persists across runs.** Every ~45 minutes the pipeline re-fetches
+  all feeds from scratch, dedupes, keeps the newest `DECK_LIMIT` cards, and
+  discards the rest permanently. `seen` (which articles you've viewed) is
+  `sessionStorage`-only — closing the tab forgets everything. This blocks
+  every remaining pipeline stage and any real "new since you last looked"
+  tracking. `pipeline/db.py`/`schema.sql` are unwired, kept only as a design
+  reference for if/when this gets built (see "Stages" above) — plan is
+  JSONL archives (git-diffable, unlike SQLite), not the SQLite file the
+  schema implies.
+- **No full-text extraction.** Every feed is teaser-only; snippets are
+  ~240 chars of whatever the RSS gave us, not the actual article.
+- Report stats: `total_items`/`live` count only feeds graded verdict `OK`,
+  but articles are drawn from every feed that returned parseable entries
+  (`STALE`/`FUTURE`/`NO DATES` included) — the report labels these
+  separately (`contributing` feeds vs. `live` feeds) so the two counts don't
+  read as the same population.
 
 ## Running the feed check
 
@@ -108,11 +144,40 @@ Feeds marked DEAD or STALE get deleted from `feeds.yaml` or their URL fixed.
 
 ## Deck size
 
-32 feeds yield roughly 2,000 articles an hour, ~1,900 after merging. Embedded
-as JSON that made `index.html` 1.3 MB — a slow load on the phone this is meant
-to be read on, for a deck nobody swipes a tenth of. `DECK_LIMIT` (400) keeps
-the newest N; the run prints how many were dropped rather than pretending it
-showed everything, and `feed_check.json` still has the full set.
+68 feeds yield roughly 3,200 articles a run, ~3,100 after merging. Embedded
+as JSON that makes `index.html` ~300 KB gzipped (Pages serves gzipped;
+~90 KB of that is the payload) — measured fine on a phone. `DECK_LIMIT` (400)
+keeps the newest N; the run prints how many were dropped rather than
+pretending it showed everything, and `feed_check.json` still has the full
+set. Cards with no lead image are no longer excluded from the deck (dropped
+that filter once the image moved from a top masthead band to a band below
+the text — a missing image doesn't look broken there the way it used to);
+roughly a third of cards are currently text-only as a result.
+
+## Dedupe performance
+
+`dedupe_articles` compares each article's title against every existing
+cluster. The straightforward version of this is O(n²) and was, measured,
+the pipeline's dominant cost at real scale (~14 min projected at ~3,000
+articles) — the reason the "45-min" loop was actually landing every ~53 min.
+Fixed with a token index (only compare against clusters sharing a
+significant word) plus `SequenceMatcher`'s free `quick_ratio()`/
+`real_quick_ratio()` upper bounds before the real comparison — both exact
+filters, not heuristics, verified byte-identical to the original algorithm
+by `tests/test_pipeline.py::test_dedupe_matches_naive_reference` across 40
+seed/size combinations. ~6x measured speedup at realistic vocabulary
+(87.8s → 13.8s at 1,000 articles) — better, not fully linear; worth another
+pass if the feed count grows a lot further. The original algorithm is kept
+verbatim as `_dedupe_articles_naive` purely as that test's reference —
+never called from the pipeline.
+
+## Tests
+
+`tests/test_pipeline.py` (`pip install -r requirements-dev.txt`, then
+`pytest tests/`) — pure-function unit tests, no network, one test per bullet
+in "Audit notes" below, plus the dedupe equivalence fuzz test above. This is
+the only automated testing in the project; everything else in "QA
+performed" was manual and one-time.
 
 ## Topics
 
@@ -227,11 +292,37 @@ makes it an experiment rather than a hobby project.
   button and silently just dismissed the prompt. The backdrop still gates
   the deck itself (`.layout` is z-index 1); only the header stays reachable
   through it.
-- `source_bias.yaml` leaning labels feed a background tint + pill on cards.
-  An unlisted source (or the file missing entirely) must resolve to
-  "Not rated" with no pill and no tint — never silently to "Center" — since
-  that's a claim about a real news organization's politics that most
-  sources here (deliberately) don't have backing for.
+- `source_bias.yaml` leaning labels feed a pill on cards (no background tint
+  — removed in the editorial redesign, kept off on purpose). An unlisted
+  source (or the file missing entirely) must resolve to "Not rated" with no
+  pill at all — never silently to "Center" — since that's a claim about a
+  real news organization's politics that most sources here (deliberately)
+  don't have backing for.
+- The no-image deck filter was removed once the card's image moved from a
+  top masthead band to a band below the text. It existed only because a
+  missing image looked broken in the old layout; `cardMarkup()` already
+  renders cleanly with none (`media == ''`). Don't reintroduce it without
+  re-checking that reasoning against whatever the card layout looks like
+  by then.
+- `fetch()` flags a response `_newsdigest_truncated` when `MAX_BYTES` cuts a
+  feed off mid-stream, and `check()` surfaces it in the row's note. Without
+  this a truncated feed just silently parsed with fewer entries (or a bozo
+  warning) and nothing said why.
+- `--hue`/`source_hue()` were removed project-wide (payload field, `chip()`
+  parameter, per-card/per-queue-item CSS custom property) once the
+  editorial redesign replaced every hue-based accent (avatar circles, queue
+  bars) with ink/mono styling — the variable was being set but consumed by
+  zero CSS rules. The share-image canvas was the one remaining real
+  consumer (a hue-gradient avatar); it now pulls the live theme's actual
+  `--ink`/`--bg`/`--sub` custom properties instead, so the exported PNG
+  matches whichever theme (light/dark) is active rather than a fixed
+  identity left over from the pre-redesign dark-glass look.
+- `<meta name="theme-color">` is two media-scoped tags (dark/light), not one
+  hardcoded value — a light-theme PWA install used to get a dark status bar
+  regardless. `applyTheme()` overwrites both tags' `content` directly when
+  the user picks an explicit Light/Dark (a `<meta>` tag can't itself be
+  scoped to a `[data-theme]` attribute selector the way CSS can) and resets
+  them to their own OS-scoped default on Auto.
 
 ## QA performed
 
