@@ -30,6 +30,7 @@ from urllib.parse import urlparse
 
 import feedparser
 import requests
+import trafilatura
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -42,11 +43,20 @@ REPORT_HTML = ROOT / "docs" / "index.html"
 # Sorted-append JSONL, not SQLite: committed every run, so it needs to
 # delta-compress in git. A rewritten-every-run SQLite file wouldn't -- git
 # stores a new blob for the whole thing on every commit, ~32x/day forever.
-FIRST_SEEN_FILE = ROOT / "data" / "first_seen.jsonl"
-FIRST_SEEN_RETENTION_DAYS = 14
+# Started as first_seen.jsonl (just an id -> timestamp map); renamed here
+# once it grew a second job (cached full-text extraction) -- one file, one
+# id-keyed row per article, rather than two files that'd both need their
+# own retention/prune logic keyed off the same id.
+ARTICLES_FILE = ROOT / "data" / "articles.jsonl"
+ARTICLES_RETENTION_DAYS = 14
+# Full-text extraction costs a real network request per article, so it's
+# capped per run -- the backlog just drains over multiple runs instead of
+# adding (budget x fetch time) to every single loop iteration.
+EXTRACT_BUDGET_PER_RUN = 40
+EXTRACT_TIMEOUT = 10
 
 # Polite, identifiable UA tried first.
-UA_BOT = "NewsFlick/0.1 (personal research; +https://github.com/devshrawin/newsdigest)"
+UA_BOT = "NewsFlick/0.1 (personal research; +https://github.com/devshrawin/NewsFlick)"
 # Several Indian publishers 403 anything that isn't a browser. Retried with this.
 UA_BROWSER = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -514,75 +524,113 @@ def article_id(a: dict) -> str:
     ).hexdigest()[:10]
 
 
-def load_first_seen() -> dict:
-    """id -> ISO timestamp of the first run that saw this article. Missing
-    file (first run ever, or a fresh checkout) is just an empty map, not
-    an error -- this is a cache, not a source of truth."""
-    if not FIRST_SEEN_FILE.exists():
+def load_articles_store() -> dict:
+    """id -> stored record: {"first_seen": iso str, "raw_text": str|None,
+    "extract_ok": bool, "extract_note": str}. Missing file (first run
+    ever, or a fresh checkout) is just an empty map, not an error -- this
+    is a cache, not a source of truth. Tolerates the old first_seen.jsonl
+    row shape too ({"id", "first_seen"} with no extraction fields) --
+    every read below goes through .get() with a default, so a pre-
+    extraction row just looks like one that hasn't been attempted yet."""
+    if not ARTICLES_FILE.exists():
         return {}
     out = {}
-    for line in FIRST_SEEN_FILE.read_text(encoding="utf-8").splitlines():
+    for line in ARTICLES_FILE.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue
         try:
             row = json.loads(line)
-            out[row["id"]] = row["first_seen"]
+            out[row["id"]] = row
         except (json.JSONDecodeError, KeyError, TypeError):
             continue   # one corrupt line shouldn't blank the whole cache
     return out
 
 
-def save_first_seen(mapping: dict) -> None:
+def save_articles_store(store: dict) -> None:
     # Sorted by id, one compact JSON object per line -- git diffs cleanly
-    # (only genuinely new/pruned lines change) and delta-compresses well
-    # across the ~32 commits/day this file gets rewritten into.
-    FIRST_SEEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+    # (only genuinely new/changed/pruned lines change) and delta-compresses
+    # well across the ~32 commits/day this file gets rewritten into.
+    ARTICLES_FILE.parent.mkdir(parents=True, exist_ok=True)
     lines = [
-        json.dumps({"id": aid, "first_seen": ts}, ensure_ascii=False, separators=(",", ":"))
-        for aid, ts in sorted(mapping.items())
+        json.dumps({"id": aid, **row}, ensure_ascii=False, separators=(",", ":"))
+        for aid, row in sorted(store.items())
     ]
-    FIRST_SEEN_FILE.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    ARTICLES_FILE.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
 
 
-def apply_first_seen(articles: list) -> None:
-    """Assigns each article's stable first-seen timestamp (today, if this
-    is the first run to see its id; carried forward unchanged otherwise)
-    and mutates every article dict in place with a "first_seen" key, which
-    render_html()'s payload then exposes as "firstSeen" for the client's
-    new-since-last-visit tracking.
+def extract_full_text(url: str) -> tuple:
+    """Best-effort full-article text via trafilatura, past the teaser RSS
+    gives us. Returns (text, note) -- text is None on any failure, note
+    says why (surfaced in the stored row's extract_note, not swallowed).
+    A short/empty result is treated as a failure too: a paywall interstitial
+    or a cookie-notice page extracts "successfully" as a few words of real
+    text, which is worse than admitting the extraction didn't work."""
+    try:
+        resp = requests.get(url, timeout=EXTRACT_TIMEOUT, headers={"User-Agent": UA_BROWSER})
+    except requests.RequestException as exc:
+        return None, type(exc).__name__
+    if resp.status_code != 200:
+        return None, f"HTTP {resp.status_code}"
+    text = trafilatura.extract(resp.content, url=url)
+    if not text or len(text) < STUB_THRESHOLD:
+        return None, "extraction too short or empty (paywall/interstitial?)"
+    return text, ""
 
-    Entries for ids no longer present in this run's article set are pruned
-    once they're older than FIRST_SEEN_RETENTION_DAYS -- kept a little
-    past the point they'd matter for "new since last visit" in case a
-    story briefly drops out of a feed and reappears, dropped eventually so
-    the file doesn't grow forever.
+
+def apply_persistence(articles: list) -> None:
+    """One pass, one file (data/articles.jsonl): assigns each article's
+    stable first-seen timestamp (today if this is the first run to see
+    its id, carried forward unchanged otherwise -- render_html()'s
+    payload exposes this as "firstSeen" for the client's new-since-last-
+    visit badge) and attempts full-text extraction for articles that
+    don't have it yet, up to EXTRACT_BUDGET_PER_RUN per run -- mutates
+    every article dict in place with "first_seen" and "raw_text" keys.
+
+    Entries for ids no longer present in this run's article set are
+    pruned once their first_seen is older than ARTICLES_RETENTION_DAYS --
+    kept a little past the point they'd matter for "new since last visit"
+    in case a story briefly drops out of a feed and reappears, dropped
+    eventually so the file doesn't grow forever. A failed extraction
+    attempt is retried on a later run (extract_ok stays False); a
+    successful one is never redone.
     """
-    existing = load_first_seen()
+    store = load_articles_store()
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
-    cutoff = now - timedelta(days=FIRST_SEEN_RETENTION_DAYS)
+    cutoff = now - timedelta(days=ARTICLES_RETENTION_DAYS)
 
+    budget = EXTRACT_BUDGET_PER_RUN
     seen_ids = set()
     for a in articles:
         aid = article_id(a)
         seen_ids.add(aid)
-        ts = existing.get(aid)
-        if ts is None:
-            ts = now_iso
-            existing[aid] = ts
-        a["first_seen"] = ts
+        row = store.get(aid)
+        if row is None:
+            row = {"first_seen": now_iso, "raw_text": None, "extract_ok": False, "extract_note": ""}
+            store[aid] = row
 
-    def _still_fresh(aid, ts):
-        if aid in seen_ids:
-            return True
+        if not row.get("extract_ok") and budget > 0 and a.get("link"):
+            budget -= 1
+            text, note = extract_full_text(a["link"])
+            if text:
+                row["raw_text"] = text
+                row["extract_ok"] = True
+                row["extract_note"] = ""
+            else:
+                row["extract_note"] = note
+
+        a["first_seen"] = row["first_seen"]
+        a["raw_text"] = row.get("raw_text")
+
+    def _still_fresh(row):
         try:
-            return datetime.fromisoformat(ts) >= cutoff
-        except ValueError:
-            return False   # unparseable timestamp -- drop it, don't crash the run
+            return datetime.fromisoformat(row["first_seen"]) >= cutoff
+        except (ValueError, KeyError, TypeError):
+            return False   # unparseable/missing timestamp -- drop it, don't crash the run
 
-    pruned = {aid: ts for aid, ts in existing.items() if _still_fresh(aid, ts)}
-    save_first_seen(pruned)
+    pruned = {aid: row for aid, row in store.items() if aid in seen_ids or _still_fresh(row)}
+    save_articles_store(pruned)
 
 
 def source_initials(name: str) -> str:
@@ -774,10 +822,11 @@ def render_html(articles: list) -> str:
             "leaning": bias.get(a["source"], NOT_RATED)["leaning"],
             "citeName": bias.get(a["source"], NOT_RATED)["cite_name"],
             "citeUrl": bias.get(a["source"], NOT_RATED)["cite_url"],
-            # Set by main()'s apply_first_seen() -- absent (None) only if
-            # render_html() is ever called directly on articles that skipped
-            # that step (e.g. a test fixture).
+            # Both set by main()'s apply_persistence() -- absent (None) only
+            # if render_html() is ever called directly on articles that
+            # skipped that step (e.g. a test fixture).
             "firstSeen": a.get("first_seen"),
+            "fullText": a.get("raw_text"),
         }
         for a in sorted(articles, key=sort_key, reverse=True)
     ]
@@ -1157,6 +1206,48 @@ def render_html(articles: list) -> str:
   }}
   .a2hs-steps b {{ color: var(--ink); font-weight: 600; }}
 
+  /* ---- inline reader: full extracted article text, opened by the
+     card's "Read here" button once main()'s apply_persistence() has
+     successfully extracted it -- distinct from "Read full article",
+     which always links out to the source regardless. ---- */
+  .reader-scrim {{
+    position: fixed; inset: 0; z-index: 40; background: var(--scrim);
+    display: flex; align-items: center; justify-content: center; padding: 1.2rem;
+    opacity: 0; pointer-events: none; transition: opacity .25s var(--out);
+  }}
+  .reader-scrim.show {{ opacity: 1; pointer-events: auto; }}
+  .reader {{
+    width: 100%; max-width: 620px; max-height: 86vh; overflow-y: auto;
+    background: var(--card); border: 1px solid var(--ink); box-shadow: var(--shadow-xl);
+    display: flex; flex-direction: column;
+    transform: translateY(16px) scale(.98); transition: transform .3s var(--spring);
+  }}
+  .reader-scrim.show .reader {{ transform: none; }}
+  .reader-head {{
+    flex: none; display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.2rem; border-bottom: 3px double var(--ink); position: sticky; top: 0;
+    background: var(--card);
+  }}
+  .reader-src {{
+    font-family: var(--font-sans); font-weight: 700; font-size: .72rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--sub);
+  }}
+  .reader-close {{
+    width: 2rem; height: 2rem; display: grid; place-items: center; flex: none;
+    border: none; background: none; color: var(--sub); cursor: pointer; border-radius: 0;
+  }}
+  .reader-close svg {{ width: .95rem; height: .95rem; }}
+  .reader-close:hover {{ color: var(--ink); }}
+  .reader-body {{ padding: 1.3rem 1.4rem 1.6rem; }}
+  .reader-body h2 {{
+    margin: 0 0 1rem; font-family: var(--font-serif); font-size: 1.6rem; line-height: 1.2;
+    font-weight: 800; letter-spacing: -.02em; color: var(--ink);
+  }}
+  .reader-text {{
+    font-family: var(--font-serif); font-size: 1.02rem; line-height: 1.65; color: var(--ink);
+    white-space: pre-wrap; margin-bottom: 1.3rem;
+  }}
+
   .layout {{
     position: relative; z-index: 1;
     max-width: 1100px; margin: 0 auto;
@@ -1245,7 +1336,7 @@ def render_html(articles: list) -> str:
     margin-bottom: .5rem; padding-bottom: .55rem; border-bottom: 1px solid var(--line);
     flex: none;
   }}
-  .metarow .read {{ flex: none; }}
+  .metarow-actions {{ display: inline-flex; align-items: center; gap: .7rem; flex: none; }}
   .topicrow {{ display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin-bottom: .55rem; flex: none; }}
   .region-tag {{ font-family: var(--font-mono); font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: var(--sub); }}
   .src {{
@@ -1319,6 +1410,11 @@ def render_html(articles: list) -> str:
   }}
   .read svg {{ width: .75rem; height: .75rem; }}
   .read:hover {{ color: var(--accent); text-decoration: none; }}
+  .read-here {{
+    font-family: var(--font-sans); font-weight: 700; font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--sub); background: none; border: 0; padding: 0; cursor: pointer;
+  }}
+  .read-here:hover {{ color: var(--ink); }}
 
   @keyframes pop {{
     0% {{ transform: scale(1); }}
@@ -1631,6 +1727,22 @@ def render_html(articles: list) -> str:
         <li>Tap <b>Add</b> in the top-right corner</li>
       </ol>
     </div>
+  </div>
+
+  <div class="reader-scrim" id="reader-scrim">
+    <article class="reader" role="dialog" aria-modal="true" aria-labelledby="reader-title">
+      <div class="reader-head">
+        <span class="reader-src" id="reader-src"></span>
+        <button class="reader-close" id="reader-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="reader-body">
+        <h2 id="reader-title"></h2>
+        <div class="reader-text" id="reader-text"></div>
+        <a class="read" id="reader-source-link" href="#" target="_blank" rel="noopener noreferrer">Open source &#8599;</a>
+      </div>
+    </article>
   </div>
 
   <script id="data" type="application/json">{data_json}</script>
@@ -1953,15 +2065,25 @@ def render_html(articles: list) -> str:
           + '<span class="regmarks" aria-hidden="true"><i></i><i></i><i></i><i></i></span>'
         : '';
       var region = a.region ? '<span class="region-tag">' + esc(a.region) + '</span>' : '';
-      // Read link lives top-right of the metarow, replacing the per-card
-      // timestamp (redundant with the drawer's page-freshness line) -- a
-      // fixed, always-visible corner action instead of something you have
-      // to scroll a variable-length card to find.
+      // "Read here" only shows once main()'s apply_persistence() has
+      // successfully extracted the full article text (fullText null until
+      // then) -- opens an inline reader instead of leaving the app, distinct
+      // from "Read full article" which always links out to the source.
+      var readHere = a.fullText
+        ? '<button type="button" class="read-here" data-act="read-here" data-id="' + esc(a.id) + '">Read here</button>'
+        : '';
+      // Read link/button live top-right of the metarow, replacing the
+      // per-card timestamp (redundant with the drawer's page-freshness
+      // line) -- fixed, always-visible corner actions instead of something
+      // you have to scroll a variable-length card to find.
       return ''
         + '<div class="body">'
         +   '<div class="metarow">'
         +     '<span class="src"><span class="ava">' + esc(a.initials) + '</span>' + esc(a.source) + '</span>'
-        +     (link ? '<a class="read" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">Read full article' + ICON.out + '</a>' : '')
+        +     '<span class="metarow-actions">'
+        +       readHere
+        +       (link ? '<a class="read" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">Read full article' + ICON.out + '</a>' : '')
+        +     '</span>'
         +   '</div>'
         +   '<div class="topicrow">'
         +     topicPill
@@ -2495,6 +2617,7 @@ def render_html(articles: list) -> str:
         }}
         render();
       }}
+      if (act === 'read-here') {{ openReader(btn.dataset.id); }}
     }});
 
     qlist.addEventListener('click', function (e) {{
@@ -2716,6 +2839,32 @@ def render_html(articles: list) -> str:
       }});
     }});
 
+    /* ---------- inline reader: cached full-text extraction ---------- */
+
+    var readerScrim = document.getElementById('reader-scrim');
+    var readerSrcEl = document.getElementById('reader-src');
+    var readerTitleEl = document.getElementById('reader-title');
+    var readerTextEl = document.getElementById('reader-text');
+    var readerSourceLink = document.getElementById('reader-source-link');
+
+    function openReader(id) {{
+      var a = all.find(function (x) {{ return x.id === id; }});
+      if (!a || !a.fullText) return;
+      readerSrcEl.textContent = a.source;
+      readerTitleEl.textContent = a.title;
+      readerTextEl.textContent = a.fullText;   // textContent, not innerHTML -- extracted third-party text is untrusted
+      var link = safeUrl(a.link);
+      readerSourceLink.href = link || '#';
+      readerSourceLink.style.display = link ? '' : 'none';
+      readerScrim.classList.add('show');
+    }}
+    function closeReader() {{ readerScrim.classList.remove('show'); }}
+    document.getElementById('reader-close').addEventListener('click', closeReader);
+    readerScrim.addEventListener('click', function (e) {{ if (e.target === readerScrim) closeReader(); }});
+    document.addEventListener('keydown', function (e) {{
+      if (e.key === 'Escape' && readerScrim.classList.contains('show')) closeReader();
+    }});
+
     /* ---------- onboarding: "what do you want to see" first-run form ---------- */
 
     var onbScrim = document.getElementById('onb-scrim');
@@ -2872,9 +3021,9 @@ def main() -> int:
     no_image = after_merge - len([a for a in deduped if a.get("image")])
     deduped = [a for a in deduped if a.get("image")]
     # Runs over the post-image-filter set -- no point persisting a
-    # first-seen timestamp in data/first_seen.jsonl for an article that
-    # can never appear in the deck.
-    apply_first_seen(deduped)
+    # first-seen timestamp or spending an extraction attempt on an
+    # article that can never appear in the deck.
+    apply_persistence(deduped)
     deduped.sort(
         key=lambda a: a["published"] or datetime.min.replace(tzinfo=timezone.utc),
         reverse=True,

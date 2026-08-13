@@ -1,8 +1,15 @@
 # NewsFlick
 
-(codename `newsdigest` internally — repo name, localStorage keys, and the
-GitHub URL are unchanged to avoid breaking existing users' saved data and
-links; this is a display-name rebrand only.)
+Live: <https://devshrawin.github.io/NewsFlick/> — repo:
+<https://github.com/devshrawin/NewsFlick>
+
+(codename `newsdigest` internally — localStorage keys and the internal
+`_newsdigest_*` identifiers are unchanged from before the display-name
+rebrand, to avoid breaking existing users' saved data. The **repo itself**
+was renamed from `newsdigest` to `NewsFlick`; the old
+`devshrawin.github.io/newsdigest/` Pages URL now 404s, `git remote` and
+`UA_BOT` are already updated to the new URL — update both again if this
+ever moves.)
 
 **What this actually is, honestly:** started as a two-week experiment in
 clustering India news feeds by story and auto-summarising them. The
@@ -18,13 +25,16 @@ a claim that it's in progress.
 No backend, no database server, no build step. A GitHub Actions workflow and
 a static page on GitHub Pages. `pipeline/db.py`/`schema.sql` exist as a
 forward-looking design for the clustering stages *if* that work ever
-resumes — they are not wired into anything today; nothing is persisted
-between runs (see "Known gaps" below).
+resumes — they are not wired into anything today. Real persistence exists,
+but through `data/articles.jsonl` (git-diffable JSONL, not the SQLite file
+the schema implies), not through those files — see "Persistence" below.
 
 The deck (`docs/index.html`, published via Pages) shows every article the
-live feeds are currently carrying — title, source, a snippet, and a lead
-image where the feed has one, image now rendered below the headline/summary
-rather than as a top masthead band. Drag or use the arrow keys to move
+live feeds are currently carrying that has a lead image (see "No-image
+filter" below) — title, source, a snippet, and the image rendered below the
+headline/summary rather than as a top masthead band, no caption on it. No
+fixed cap on how many cards show, and no visible story-count anywhere in the
+UI (see "Deck size" below for both). Drag or use the arrow keys to move
 between articles; tap "Read full article" (top-right of each card) to open
 one. Dark by default (light only if the browser explicitly asks for it, or
 the user picks Light/Dark/Auto from the drawer). A hamburger button opens a
@@ -45,8 +55,10 @@ this used to be the pipeline's dominant cost), and each card has a
 save-for-later star and a share button (deep-links back to that exact card
 on our own page, not the source, so the digest itself stays visible when
 shared; the exported share image mirrors whatever theme — light or dark —
-is active). The workflow runs every ~45 minutes on its own, or on demand
-from the Actions tab.
+is active). A small badge next to the header wordmark shows how many
+articles are new since your last visit (see "Persistence" below); tapping
+it jumps to the first one. The workflow runs every ~45 minutes on its own,
+or on demand from the Actions tab.
 
 ## Pass marks (the original goal, not what shipped — kept as a record)
 
@@ -73,28 +85,53 @@ wired up — every run re-fetches all feeds from scratch and keeps nothing.
 ## Status
 
 - [x] Feed health check
-- [ ] Schema — designed (`pipeline/schema.sql`), not wired into anything
+- [ ] Schema — designed (`pipeline/schema.sql`), not wired into anything;
+  real persistence went a different route (see "Persistence" below)
 - [x] Article deck (swipeable viewer, published via Pages) — this is the actual product now
-- [ ] Persistence (see "Known gaps" — blocks everything below)
-- [ ] Ingest + extraction
+- [x] Persistence — `data/articles.jsonl`, first-seen tracking + cached
+  full-text extraction (see "Persistence" below)
+- [x] Full-text extraction — best-effort, budgeted, backlog drains over
+  multiple runs (see "Persistence" below)
 - [ ] Golden set (hand-labelled day one)
 - [ ] Embed + cluster
 - [ ] Summarise
 - [ ] Daily digest
 
+## Persistence
+
+`data/articles.jsonl` — one JSON object per line, sorted by id (git-diffable
+and delta-compresses across the ~32 commits/day the scheduler makes; a
+rewritten-every-run SQLite file couldn't). Started as `first_seen.jsonl`
+(just an id → timestamp map, renamed+extended once it grew a second job —
+see the audit note below for the exact row shape and why one file, not two).
+Two things it does:
+
+- **First-seen tracking.** Every article's id gets a timestamp the first run
+  that sees it, carried forward unchanged after that. `render_html()` exposes
+  it as each card's `firstSeen`; the client compares it against a
+  `localStorage` `newsdigest:lastVisit` timestamp to show the "N new" badge
+  and jump to the first new article on click. Entries for ids absent from
+  the current run get pruned once older than `ARTICLES_RETENTION_DAYS` (14).
+- **Full-text extraction**, via `trafilatura`. `extract_full_text()` fetches
+  the article's own URL and pulls the real body text past the ~240-char RSS
+  teaser, exposed as each card's `fullText`. Capped at
+  `EXTRACT_BUDGET_PER_RUN` (40) attempts per run — a network fetch per
+  article isn't free, so the backlog drains gradually across runs instead of
+  adding 40×(fetch time) to every single loop iteration. A successful
+  extraction is cached forever (`extract_ok: true`, never retried); a failed
+  one (`extract_note` says why — HTTP status, paywall/interstitial, timeout)
+  is retried on a later run.
+
+`seen` (which articles you've swiped past *this session*) is still
+`sessionStorage`-only and unrelated to any of this — closing the tab forgets
+it, by design; it answers "what have I scrolled past right now", not "what's
+new since I was last here".
+
 ## Known gaps (largest first)
 
-- **Nothing persists across runs.** Every ~45 minutes the pipeline re-fetches
-  all feeds from scratch, dedupes, keeps the newest `DECK_LIMIT` cards, and
-  discards the rest permanently. `seen` (which articles you've viewed) is
-  `sessionStorage`-only — closing the tab forgets everything. This blocks
-  every remaining pipeline stage and any real "new since you last looked"
-  tracking. `pipeline/db.py`/`schema.sql` are unwired, kept only as a design
-  reference for if/when this gets built (see "Stages" above) — plan is
-  JSONL archives (git-diffable, unlike SQLite), not the SQLite file the
-  schema implies.
-- **No full-text extraction.** Every feed is teaser-only; snippets are
-  ~240 chars of whatever the RSS gave us, not the actual article.
+- **No embed/cluster/summarise.** The persistence layer above is what those
+  stages would need, but they're not built — see "Stages" above. Full-text
+  is now stored; nothing downstream reads it yet except the card itself.
 - Report stats: `total_items`/`live` count only feeds graded verdict `OK`,
   but articles are drawn from every feed that returned parseable entries
   (`STALE`/`FUTURE`/`NO DATES` included) — the report labels these
@@ -144,15 +181,27 @@ Feeds marked DEAD or STALE get deleted from `feeds.yaml` or their URL fixed.
 
 ## Deck size
 
-68 feeds yield roughly 3,200 articles a run, ~3,100 after merging. Embedded
-as JSON that makes `index.html` ~300 KB gzipped (Pages serves gzipped;
-~90 KB of that is the payload) — measured fine on a phone. `DECK_LIMIT` (400)
-keeps the newest N; the run prints how many were dropped rather than
-pretending it showed everything, and `feed_check.json` still has the full
-set. Cards with no lead image are no longer excluded from the deck (dropped
-that filter once the image moved from a top masthead band to a band below
-the text — a missing image doesn't look broken there the way it used to);
-roughly a third of cards are currently text-only as a result.
+68 feeds yield roughly 3,300 articles a run, ~3,150 after merging. No fixed
+cap on the deck (`DECK_LIMIT` existed, got removed — see the audit note
+below); every deduped, image-having article shows. Cards with no lead image
+*are* excluded (see "No-image filter" below) — currently around a third of
+the deduped set, leaving roughly 2,000+ cards in the actual deck. That's a
+real jump in payload size from the old 400-card cap: `index.html` grows to
+roughly 1.5+ MB raw / ~450 KB+ gzipped (Pages serves gzipped) from the old
+~300 KB / ~90 KB — still loads fine, no pagination needed yet, but if the
+feed count keeps growing this is the number to watch. `feed_check.json`
+still has the full un-deduped set regardless of what made the deck.
+
+## No-image filter
+
+Cards with no lead image are dropped, not shown text-only — this has
+flipped twice (see the audit note below for the full history): dropped
+originally because a missing image looked broken in the old top-masthead
+layout, un-dropped once the image moved to a band below the text (a missing
+one didn't look broken there), then re-dropped again on explicit
+preference. If you're the one reading this deciding whether to flip it a
+third time: check with whoever owns this reader first, it's clearly a
+real, contested preference and not just leftover code.
 
 ## Dedupe performance
 
@@ -323,6 +372,32 @@ makes it an experiment rather than a hobby project.
   the user picks an explicit Light/Dark (a `<meta>` tag can't itself be
   scoped to a `[data-theme]` attribute selector the way CSS can) and resets
   them to their own OS-scoped default on Auto.
+- The card's "lead image · from feed" caption and the "Story N of M · drag
+  either way" status line above the stage are both removed on explicit
+  preference — not a bug fix, a deliberate simplification. Don't add either
+  back without checking first.
+- `DECK_LIMIT` and `round_robin_by_source()` are gone entirely, not just
+  disabled — the round-robin function existed solely to pick a fair subset
+  when the cap forced *something* to be dropped; with no cap it did nothing
+  but re-sort by time, so it was deleted along with its tests rather than
+  left as dead code (see "Deck size" above for the real number now, and the
+  payload-size tradeoff of removing the cap).
+- The no-image deck filter has been flipped three times now (dropped → kept
+  text-only → dropped again) as the card layout and preferences both
+  changed — see "No-image filter" above. The current state (dropped) is
+  deliberate, current, and explicitly re-confirmed; it is not an oversight
+  waiting to be "fixed" back.
+- `data/articles.jsonl` was `data/first_seen.jsonl` — renamed (via `git mv`,
+  history preserved) once it grew a second job. Row shape extended from
+  `{"id", "first_seen"}` to `{"id", "first_seen", "raw_text", "extract_ok",
+  "extract_note"}`; `load_articles_store()` reads old-shape rows fine since
+  every field access goes through `.get()` with a default — no migration
+  script needed, the old shape is just a valid subset of the new one.
+- The repo itself was renamed from `newsdigest` to `NewsFlick` on GitHub.
+  `git remote`, `UA_BOT`'s self-identifying URL, and this README's live
+  links were all updated in the same pass — grep for
+  `devshrawin/newsdigest` or `devshrawin.github.io/newsdigest` before
+  trusting any old link found elsewhere (chat history, notes, bookmarks).
 
 ## QA performed
 

@@ -10,6 +10,7 @@ check_feeds.py, add both here: the audit note and the test.
 """
 
 import calendar
+import json
 import random
 import string
 import sys
@@ -249,7 +250,7 @@ def test_classify_region_keyword_wins_over_default():
     assert cf.classify_region("PM meets Chinese premier in Beijing", "", default_region="India") == "Asia"
 
 
-# ---------- first_seen persistence (data/first_seen.jsonl) ----------
+# ---------- article persistence + extraction (data/articles.jsonl) ----------
 
 def test_article_id_stable_and_falls_back_to_source_title():
     a = _article("PTI", "Some headline", datetime(2026, 1, 1, tzinfo=timezone.utc))
@@ -259,45 +260,165 @@ def test_article_id_stable_and_falls_back_to_source_title():
     assert cf.article_id(a) == cf.article_id(b)  # no link -> source+title fallback, still stable
 
 
-def test_apply_first_seen_assigns_now_on_first_sighting(monkeypatch, tmp_path):
-    monkeypatch.setattr(cf, "FIRST_SEEN_FILE", tmp_path / "first_seen.jsonl")
+def _no_extraction(monkeypatch):
+    """Most persistence tests aren't testing extraction -- stub it out so
+    they never touch the network, and so extract_ok never flips true
+    (which would make a second apply_persistence() call skip re-running
+    extract_full_text and mask a real regression there)."""
+    monkeypatch.setattr(cf, "extract_full_text", lambda url: (None, "stubbed for test"))
+
+
+def test_apply_persistence_assigns_now_on_first_sighting(monkeypatch, tmp_path):
+    monkeypatch.setattr(cf, "ARTICLES_FILE", tmp_path / "articles.jsonl")
+    _no_extraction(monkeypatch)
     arts = [_article("A", "Brand new story here", datetime(2026, 1, 1, tzinfo=timezone.utc))]
-    cf.apply_first_seen(arts)
+    cf.apply_persistence(arts)
     assert arts[0]["first_seen"] is not None
-    stored = cf.load_first_seen()
+    stored = cf.load_articles_store()
     assert cf.article_id(arts[0]) in stored
 
 
-def test_apply_first_seen_preserves_timestamp_across_runs(monkeypatch, tmp_path):
-    monkeypatch.setattr(cf, "FIRST_SEEN_FILE", tmp_path / "first_seen.jsonl")
+def test_apply_persistence_preserves_timestamp_across_runs(monkeypatch, tmp_path):
+    monkeypatch.setattr(cf, "ARTICLES_FILE", tmp_path / "articles.jsonl")
+    _no_extraction(monkeypatch)
     a = _article("A", "A story that persists", datetime(2026, 1, 1, tzinfo=timezone.utc))
-    cf.apply_first_seen([a])
+    cf.apply_persistence([a])
     first_ts = a["first_seen"]
 
     # Same article (by id), a "later run" -- must keep the original timestamp,
     # not overwrite it with whatever "now" is on the second call.
     a2 = _article("A", "A story that persists", datetime(2026, 1, 1, tzinfo=timezone.utc))
-    cf.apply_first_seen([a2])
+    cf.apply_persistence([a2])
     assert a2["first_seen"] == first_ts
 
 
-def test_apply_first_seen_prunes_only_stale_absent_ids(monkeypatch, tmp_path):
-    monkeypatch.setattr(cf, "FIRST_SEEN_FILE", tmp_path / "first_seen.jsonl")
-    old_id = "deadbeef01"
+def test_apply_persistence_prunes_only_stale_absent_ids(monkeypatch, tmp_path):
+    monkeypatch.setattr(cf, "ARTICLES_FILE", tmp_path / "articles.jsonl")
+    _no_extraction(monkeypatch)
     now = datetime.now(timezone.utc)
-    too_old = (now - timedelta(days=cf.FIRST_SEEN_RETENTION_DAYS + 1)).isoformat()
+    too_old = (now - timedelta(days=cf.ARTICLES_RETENTION_DAYS + 1)).isoformat()
     still_fresh = (now - timedelta(days=1)).isoformat()
-    cf.save_first_seen({old_id: too_old, "keepme01": still_fresh})
+    cf.save_articles_store({
+        "deadbeef01": {"first_seen": too_old, "raw_text": None, "extract_ok": False, "extract_note": ""},
+        "keepme01": {"first_seen": still_fresh, "raw_text": None, "extract_ok": False, "extract_note": ""},
+    })
 
     a = _article("A", "Some other current story", now)
-    cf.apply_first_seen([a])
+    cf.apply_persistence([a])
 
-    stored = cf.load_first_seen()
-    assert old_id not in stored           # absent from this run AND past retention -> pruned
+    stored = cf.load_articles_store()
+    assert "deadbeef01" not in stored     # absent from this run AND past retention -> pruned
     assert "keepme01" in stored           # absent from this run but still within retention -> kept
     assert cf.article_id(a) in stored     # present in this run -> always kept
 
 
-def test_load_first_seen_missing_file_is_empty_not_an_error(monkeypatch, tmp_path):
-    monkeypatch.setattr(cf, "FIRST_SEEN_FILE", tmp_path / "does-not-exist.jsonl")
-    assert cf.load_first_seen() == {}
+def test_apply_persistence_tolerates_legacy_first_seen_only_rows(monkeypatch, tmp_path):
+    # The file used to be first_seen.jsonl, rows shaped {"id", "first_seen"}
+    # with no extraction fields at all -- a real, already-committed shape,
+    # not hypothetical. Must load and extend those rows without crashing.
+    monkeypatch.setattr(cf, "ARTICLES_FILE", tmp_path / "articles.jsonl")
+    _no_extraction(monkeypatch)
+    path = tmp_path / "articles.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(timezone.utc)
+    aid = "legacyid01"
+    path.write_text(json.dumps({"id": aid, "first_seen": now.isoformat()}) + "\n", encoding="utf-8")
+
+    a = _article("A", "Some story", now)
+    monkeypatch.setattr(cf, "article_id", lambda x: aid)
+    cf.apply_persistence([a])
+    assert a["raw_text"] is None   # legacy row had no raw_text -- .get() default, not a crash
+
+
+def test_load_articles_store_missing_file_is_empty_not_an_error(monkeypatch, tmp_path):
+    monkeypatch.setattr(cf, "ARTICLES_FILE", tmp_path / "does-not-exist.jsonl")
+    assert cf.load_articles_store() == {}
+
+
+def test_apply_persistence_stores_successful_extraction(monkeypatch, tmp_path):
+    monkeypatch.setattr(cf, "ARTICLES_FILE", tmp_path / "articles.jsonl")
+    monkeypatch.setattr(cf, "extract_full_text", lambda url: ("x" * 1000, ""))
+    a = _article("A", "A story worth extracting", datetime(2026, 1, 1, tzinfo=timezone.utc))
+    cf.apply_persistence([a])
+    assert a["raw_text"] == "x" * 1000
+    stored = cf.load_articles_store()[cf.article_id(a)]
+    assert stored["extract_ok"] is True
+
+
+def test_apply_persistence_never_retries_a_successful_extraction(monkeypatch, tmp_path):
+    monkeypatch.setattr(cf, "ARTICLES_FILE", tmp_path / "articles.jsonl")
+    calls = []
+
+    def fake_extract(url):
+        calls.append(url)
+        return "x" * 1000, ""
+
+    monkeypatch.setattr(cf, "extract_full_text", fake_extract)
+    a = _article("A", "A story worth extracting", datetime(2026, 1, 1, tzinfo=timezone.utc))
+    cf.apply_persistence([a])
+    a2 = _article("A", "A story worth extracting", datetime(2026, 1, 1, tzinfo=timezone.utc))
+    cf.apply_persistence([a2])
+    assert len(calls) == 1   # second run's extract_ok was already True -- no second fetch
+    assert a2["raw_text"] == "x" * 1000
+
+
+def test_apply_persistence_respects_extraction_budget(monkeypatch, tmp_path):
+    monkeypatch.setattr(cf, "ARTICLES_FILE", tmp_path / "articles.jsonl")
+    monkeypatch.setattr(cf, "EXTRACT_BUDGET_PER_RUN", 2)
+    calls = []
+
+    def fake_extract(url):
+        calls.append(url)
+        return "x" * 1000, ""
+
+    monkeypatch.setattr(cf, "extract_full_text", fake_extract)
+    now = datetime.now(timezone.utc)
+    arts = [_article(f"S{i}", f"story {i}", now) for i in range(5)]
+    cf.apply_persistence(arts)
+    assert len(calls) == 2   # budget of 2, not one attempt per article
+    extracted = [a for a in arts if a["raw_text"]]
+    assert len(extracted) == 2
+
+
+def test_apply_persistence_records_failed_extraction_note(monkeypatch, tmp_path):
+    monkeypatch.setattr(cf, "ARTICLES_FILE", tmp_path / "articles.jsonl")
+    monkeypatch.setattr(cf, "extract_full_text", lambda url: (None, "HTTP 404"))
+    a = _article("A", "A story that fails to extract", datetime(2026, 1, 1, tzinfo=timezone.utc))
+    cf.apply_persistence([a])
+    assert a["raw_text"] is None
+    stored = cf.load_articles_store()[cf.article_id(a)]
+    assert stored["extract_ok"] is False
+    assert stored["extract_note"] == "HTTP 404"
+
+
+def test_extract_full_text_rejects_short_result(monkeypatch):
+    class FakeResp:
+        status_code = 200
+        content = b"<html>tiny</html>"
+
+    monkeypatch.setattr(cf.requests, "get", lambda *a, **k: FakeResp())
+    monkeypatch.setattr(cf.trafilatura, "extract", lambda *a, **k: "too short")
+    text, note = cf.extract_full_text("https://example.com/story")
+    assert text is None
+    assert "short" in note or "empty" in note
+
+
+def test_extract_full_text_rejects_non_200(monkeypatch):
+    class FakeResp:
+        status_code = 404
+        content = b""
+
+    monkeypatch.setattr(cf.requests, "get", lambda *a, **k: FakeResp())
+    text, note = cf.extract_full_text("https://example.com/story")
+    assert text is None
+    assert "404" in note
+
+
+def test_extract_full_text_handles_request_exception(monkeypatch):
+    def raise_it(*a, **k):
+        raise cf.requests.exceptions.Timeout("too slow")
+
+    monkeypatch.setattr(cf.requests, "get", raise_it)
+    text, note = cf.extract_full_text("https://example.com/story")
+    assert text is None
+    assert note == "Timeout"
