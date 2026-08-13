@@ -149,7 +149,12 @@ def fetch(url: str):
         except requests.RequestException as exc:
             last = (None, type(exc).__name__)
             continue
-        if resp.status_code in (403, 406, 429) and not is_last_attempt:
+        # 202 added after ESPN's RSS gateway was caught returning it
+        # intermittently ("still generating, try again") -- the same URL
+        # returned 200 on a retry seconds later with no other change. Not a
+        # block like 403/406/429, but the fix is the same: back off 2s and
+        # try again rather than grading a transient hiccup as DEAD.
+        if resp.status_code in (403, 406, 429, 202) and not is_last_attempt:
             last = (resp, f"HTTP {resp.status_code}")
             time.sleep(2)   # FIX 9: don't hammer a server that just refused us
             continue

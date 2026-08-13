@@ -41,6 +41,18 @@
 # its current URL is the one known to 403 specifically from GitHub
 # Actions' datacenter IPs; its alternate is worth trying since the
 # current one is already broken from CI some of the time.
+#
+# 2026-08-13 audit: Indian Express and Medianama both 403'd from the CI
+# run that day. Confirmed from a non-CI IP (this dev environment) that
+# both return 200 with identical URLs -- this is GitHub Actions' IP range
+# getting blocked, not a broken feed or a UA problem check.py's retry
+# already handles. Nothing to fix on our end short of a paid proxy; left
+# both in place since the block isn't provably permanent and the retry
+# cost when it does happen is small (one extra request + a 2s backoff).
+# ESPN's HTTP 202 the same day was different -- a genuinely transient
+# "still generating" response from ESPN's own RSS gateway, confirmed by
+# the identical URL returning 200 seconds later with nothing else changed.
+# Fixed in fetch() itself (202 now retried like 403/406/429), not here.
 
 feeds:
   # --- National ---
@@ -153,6 +165,23 @@ feeds:
     url: https://variety.com/feed/
   - name: Hollywood Reporter
     url: https://www.hollywoodreporter.com/feed/
+
+  # --- Health ---
+  # Added 2026-08-13 to fill a real gap: classify_topic() has had a Health
+  # bucket since the start, but zero feeds fed it -- every "Health" story
+  # in the deck was an incidental keyword hit off a National/World feed,
+  # not real coverage. Four picks, each a distinct angle, not volume for
+  # its own sake: India-domestic, US/international, health-policy/biotech
+  # specialist, and global-authority official news.
+  - name: The Hindu Health
+    url: https://www.thehindu.com/sci-tech/health/feeder/default.rss
+    region: India
+  - name: NPR Health
+    url: https://feeds.npr.org/1128/rss.xml
+  - name: STAT News
+    url: https://www.statnews.com/feed/
+  - name: WHO News   # STALE at last check -- fetches fine, entry pubDates are unreliable/old
+    url: https://www.who.int/rss-feeds/news-english.xml
 
   # --- Government ---
   - name: MyGov India   # STALE at last check -- alive, just low-frequency
