@@ -205,6 +205,54 @@ def test_dedupe_matches_naive_reference():
             assert fast == naive, f"mismatch at seed={seed} n={n}"
 
 
+def test_dedupe_known_index_counterexamples():
+    # Two real divergences found when the token index was (wrongly) documented
+    # as an exact filter. Both scored far above DEDUPE_TITLE_THRESHOLD yet the
+    # fast path put them in separate clusters:
+    #   1. the cluster opener had no word >3 chars, so it landed in no index
+    #      bucket at all and was unreachable from every later article;
+    #   2. both titles had long words, but the only ones differed by an
+    #      inflection ("rupee"/"rupees"), so they shared no whole-word key.
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    for t1, t2 in [
+        ("PM to see the new car", "PM to see the new cars"),
+        ("Rupee hits new low", "Rupees hit new low"),
+        ("Poll date set for May", "Polls date set for May"),
+    ]:
+        arts = [_article("A", t1, now), _article("B", t2, now + timedelta(minutes=1))]
+        fast = cf.dedupe_articles(arts)
+        naive = cf._dedupe_articles_naive(arts)
+        assert fast == naive, f"index missed a merge the naive path makes: {t1!r} vs {t2!r}"
+        assert len(fast) == 1, f"expected these to merge: {t1!r} vs {t2!r}"
+
+
+_ADVERSARIAL_WORDS = (
+    # Deliberately hostile to a whole-word index: short words, inflected
+    # pairs, and near-identical stems. The main fuzz vocabulary is all long
+    # distinct words, which structurally cannot produce either counterexample
+    # above.
+    "pm to see the new car cars poll polls rupee rupees hit hits bank banks "
+    "low high set date may ban bans tax taxes cut cuts win wins bid bids"
+).split()
+
+
+def test_dedupe_matches_naive_reference_adversarial():
+    # Same equivalence assertion as the main fuzz, but over titles built from
+    # short/inflected words -- the shape that actually broke the index.
+    rng = random.Random(99)
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    mismatches = []
+    for case in range(250):
+        n = rng.randint(2, 12)
+        arts = []
+        for i in range(n):
+            title = " ".join(rng.choices(_ADVERSARIAL_WORDS, k=rng.randint(3, 7)))
+            arts.append(_article(f"S{i % 4}", title, now + timedelta(minutes=i)))
+        if cf.dedupe_articles(arts) != cf._dedupe_articles_naive(arts):
+            mismatches.append(case)
+    assert not mismatches, f"{len(mismatches)}/250 adversarial cases diverged from the naive reference"
+
+
 def test_dedupe_matches_naive_reference_with_no_dates():
     # Undated articles (published=None) exercise the "no time-window guard
     # applies" branch on both sides.
@@ -362,6 +410,29 @@ def test_apply_persistence_never_retries_a_successful_extraction(monkeypatch, tm
     assert a2["raw_text"] == "x" * 1000
 
 
+def test_extraction_budget_spread_across_sources_not_feed_order(monkeypatch, tmp_path):
+    # The real bug this guards: articles arrive in feeds.yaml order, so a
+    # linear scan spent the whole budget on the first-listed feeds. Measured
+    # before the fix: 95 of 100 extracted articles came from 3 of 78 feeds.
+    # A prolific first source must not be able to starve every later source.
+    monkeypatch.setattr(cf, "ARTICLES_FILE", tmp_path / "articles.jsonl")
+    monkeypatch.setattr(cf, "EXTRACT_BUDGET_PER_RUN", 6)
+    monkeypatch.setattr(cf, "time", type("T", (), {"sleep": staticmethod(lambda s: None)}))
+    monkeypatch.setattr(cf, "extract_full_text", lambda url: ("x" * 1000, ""))
+
+    now = datetime.now(timezone.utc)
+    # Source "First" is listed first and has far more articles than the rest.
+    arts = [_article("First", f"first story {i}", now) for i in range(50)]
+    for s in ["Second", "Third", "Fourth"]:
+        arts.append(_article(s, f"{s} story", now))
+
+    cf.apply_persistence(arts)
+    got = {a["source"] for a in arts if a["raw_text"]}
+    # With a budget of 6 and round-robin, every source should get one before
+    # "First" gets a second -- so all four appear, not just "First".
+    assert got == {"First", "Second", "Third", "Fourth"}, got
+
+
 def test_apply_persistence_respects_extraction_budget(monkeypatch, tmp_path):
     monkeypatch.setattr(cf, "ARTICLES_FILE", tmp_path / "articles.jsonl")
     monkeypatch.setattr(cf, "EXTRACT_BUDGET_PER_RUN", 2)
@@ -391,12 +462,28 @@ def test_apply_persistence_records_failed_extraction_note(monkeypatch, tmp_path)
     assert stored["extract_note"] == "HTTP 404"
 
 
-def test_extract_full_text_rejects_short_result(monkeypatch):
-    class FakeResp:
-        status_code = 200
-        content = b"<html>tiny</html>"
+class _FakeResp:
+    """Mimics the streaming interface extract_full_text actually uses --
+    it reads via iter_content() under a MAX_BYTES cap rather than
+    .content, so a fake without iter_content/close would pass a test the
+    real code path would fail on."""
 
-    monkeypatch.setattr(cf.requests, "get", lambda *a, **k: FakeResp())
+    def __init__(self, status_code=200, body=b"", chunk=65536):
+        self.status_code = status_code
+        self._body = body
+        self._chunk = chunk
+        self.closed = False
+
+    def iter_content(self, size):
+        for i in range(0, len(self._body), self._chunk):
+            yield self._body[i:i + self._chunk]
+
+    def close(self):
+        self.closed = True
+
+
+def test_extract_full_text_rejects_short_result(monkeypatch):
+    monkeypatch.setattr(cf.requests, "get", lambda *a, **k: _FakeResp(200, b"<html>tiny</html>"))
     monkeypatch.setattr(cf.trafilatura, "extract", lambda *a, **k: "too short")
     text, note = cf.extract_full_text("https://example.com/story")
     assert text is None
@@ -404,14 +491,38 @@ def test_extract_full_text_rejects_short_result(monkeypatch):
 
 
 def test_extract_full_text_rejects_non_200(monkeypatch):
-    class FakeResp:
-        status_code = 404
-        content = b""
-
-    monkeypatch.setattr(cf.requests, "get", lambda *a, **k: FakeResp())
+    monkeypatch.setattr(cf.requests, "get", lambda *a, **k: _FakeResp(404, b""))
     text, note = cf.extract_full_text("https://example.com/story")
     assert text is None
     assert "404" in note
+
+
+def test_extract_full_text_refuses_non_http_schemes():
+    # url comes from a third-party feed's <link>; whatever is fetched gets
+    # published, so anything that isn't plain http(s) must never be requested.
+    for bad in ["file:///C:/Windows/win.ini", "ftp://example.com/x", "//evil.com/x", "", None]:
+        text, note = cf.extract_full_text(bad)
+        assert text is None
+        assert note == "refused non-http(s) URL", bad
+
+
+def test_extract_full_text_caps_body_at_max_bytes(monkeypatch):
+    # A <link> pointing at something huge must not be buffered whole.
+    oversized = b"x" * (cf.MAX_BYTES + 5 * 65536)
+    seen = {}
+
+    def fake_extract(body, url=None):
+        seen["len"] = len(body)
+        return "y" * 1000
+
+    monkeypatch.setattr(cf.requests, "get", lambda *a, **k: _FakeResp(200, oversized))
+    monkeypatch.setattr(cf.trafilatura, "extract", fake_extract)
+    text, note = cf.extract_full_text("https://example.com/huge")
+    assert text is not None
+    # Stops at the first chunk that crosses the cap, so it may overshoot by
+    # up to one chunk -- but must not have read the whole oversized body.
+    assert seen["len"] < len(oversized)
+    assert seen["len"] <= cf.MAX_BYTES + 65536
 
 
 def test_extract_full_text_handles_request_exception(monkeypatch):

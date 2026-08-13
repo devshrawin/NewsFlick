@@ -19,11 +19,12 @@ import difflib
 import hashlib
 import html
 import json
+import os
 import re
 import sys
 import time
 import statistics
-from collections import defaultdict
+from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -54,6 +55,11 @@ ARTICLES_RETENTION_DAYS = 14
 # adding (budget x fetch time) to every single loop iteration.
 EXTRACT_BUDGET_PER_RUN = 40
 EXTRACT_TIMEOUT = 10
+# Give up on an article after this many failed extraction attempts. A hard
+# paywall never becomes extractable, and without a cap it stays a candidate
+# forever -- burning one request per run, ~32 runs/day, aimed at one
+# publisher, while holding the head of its source's queue.
+EXTRACT_MAX_ATTEMPTS = 3
 
 # Polite, identifiable UA tried first.
 UA_BOT = "NewsFlick/0.1 (personal research; +https://github.com/devshrawin/NewsFlick)"
@@ -433,11 +439,22 @@ def check(name: str, url: str, default_region: str | None = None):
         notes.append(f"redirected -> {resp.url}")
     row["note"] = "; ".join(notes)
 
+    # SKEW_HOURS used to only label the feed FUTURE in the report -- nothing
+    # clamped the value, so a publisher stamping entries days or years ahead
+    # sorted permanently to the top of the deck and its bogus timestamps also
+    # broke DEDUPE_WINDOW_HOURS gap checks, silently preventing legitimate
+    # merges. Clamp to now: still admitted, just no longer able to jump the
+    # queue on a clock error.
+    clamp_to = datetime.now(timezone.utc)
+    skew_limit = clamp_to + timedelta(hours=SKEW_HOURS)
+
     for e, body, t in zip(entries, bodies, entry_times):
         title = e.get("title") or "(untitled)"
         snippet = (body[:SNIPPET_LEN] + "…") if len(body) > SNIPPET_LEN else body
         tags = [tag.get("term") for tag in (e.get("tags") or []) if tag.get("term")]
         link = entry_link(e)
+        if t is not None and t > skew_limit:
+            t = clamp_to
         articles.append({
             "source": name,
             "title": title,
@@ -561,7 +578,14 @@ def save_articles_store(store: dict) -> None:
         json.dumps({"id": aid, **row}, ensure_ascii=False, separators=(",", ":"))
         for aid, row in sorted(store.items())
     ]
-    ARTICLES_FILE.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    # Temp file + atomic replace, not a direct truncating write. The
+    # workflow does `git add data/` unconditionally -- even when
+    # check_feeds.py exited non-zero -- so a write that died partway (disk
+    # full, OSError) would get committed and pushed, and load_articles_store()
+    # silently skips the half-written final line, making the loss invisible.
+    tmp = ARTICLES_FILE.with_suffix(ARTICLES_FILE.suffix + ".tmp")
+    tmp.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    os.replace(tmp, ARTICLES_FILE)
 
 
 def extract_full_text(url: str) -> tuple:
@@ -571,16 +595,91 @@ def extract_full_text(url: str) -> tuple:
     A short/empty result is treated as a failure too: a paywall interstitial
     or a cookie-notice page extracts "successfully" as a few words of real
     text, which is worse than admitting the extraction didn't work."""
+    # http(s) only. `url` is whatever a third-party feed put in <link>, and
+    # whatever comes back gets committed to a public repo and published --
+    # so this is an attacker-influenced fetch whose output is published.
+    # requests already raises InvalidSchema (a RequestException, caught
+    # below) for file://, ftp:// and friends, but rejecting up front is
+    # clearer than relying on that, and it also blocks a scheme-relative
+    # or garbage value from ever reaching the network layer.
+    if not re.match(r"^https?://", url or "", re.IGNORECASE):
+        return None, "refused non-http(s) URL"
     try:
-        resp = requests.get(url, timeout=EXTRACT_TIMEOUT, headers={"User-Agent": UA_BROWSER})
+        # stream=True + a capped read: unlike fetch()'s feed download this
+        # used to call resp.content unbounded, so a <link> pointing at a
+        # video/ISO/giant page would buffer the whole thing into the
+        # runner's RAM. Same MAX_BYTES ceiling as the feed path.
+        resp = requests.get(
+            url, timeout=EXTRACT_TIMEOUT, headers={"User-Agent": UA_BROWSER}, stream=True,
+        )
+        if resp.status_code != 200:
+            resp.close()
+            return None, f"HTTP {resp.status_code}"
+        chunks, total = [], 0
+        for chunk in resp.iter_content(65536):
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > MAX_BYTES:
+                break
+        body = b"".join(chunks)
+        resp.close()
     except requests.RequestException as exc:
         return None, type(exc).__name__
-    if resp.status_code != 200:
-        return None, f"HTTP {resp.status_code}"
-    text = trafilatura.extract(resp.content, url=url)
+    text = trafilatura.extract(body, url=url)
     if not text or len(text) < STUB_THRESHOLD:
         return None, "extraction too short or empty (paywall/interstitial?)"
     return text, ""
+
+
+def extraction_candidates(articles: list, store: dict, budget: int) -> list:
+    """Which articles get this run's extraction budget, interleaved one
+    per source per round rather than first-come-first-served.
+
+    `articles` arrives in feeds.yaml order (dedupe_articles preserves the
+    order clusters were opened, which follows the feed loop), so spending
+    the budget with a plain linear scan gave it entirely to whichever
+    feeds happen to be listed first. Measured on a real store before this
+    fix: 95 of 100 extracted articles in the deck came from 3 of 78 feeds
+    (The Hindu, The Hindu (Top), Hindustan Times -- the first entries in
+    feeds.yaml), and 43 of 51 sources in the deck had zero. High-volume
+    early feeds always have enough fresh unextracted articles to consume
+    all 40 slots, so later feeds never got one -- full-text was silently a
+    3-feed feature. Same fairness problem, and the same round-robin fix,
+    as the deck's since-removed round_robin_by_source.
+
+    Skips anything already extracted (never re-fetch) or with no link to
+    fetch. A permanently-failing article is retried on later runs, but it
+    only holds up its own source's queue now, not everyone else's.
+    """
+    by_source = defaultdict(deque)
+    queued_ids = set()
+    for a in articles:
+        aid = article_id(a)
+        if aid in queued_ids:
+            continue          # same id twice in one run (a publisher exposing
+                              # one URL under two headlines across two of its
+                              # own feeds) must not spend two budget units
+                              # fetching the identical page
+        row = store.get(aid)
+        if row is not None and row.get("extract_ok"):
+            continue          # already have it, never re-fetch
+        if not a.get("link"):
+            continue          # nothing to fetch
+        if row is not None and row.get("attempts", 0) >= EXTRACT_MAX_ATTEMPTS:
+            continue          # given up on this one -- see below
+        queued_ids.add(aid)
+        by_source[a["source"]].append(a)
+
+    picked = []
+    queues = list(by_source.values())
+    while len(picked) < budget and queues:
+        for q in queues:
+            if len(picked) >= budget:
+                break
+            if q:
+                picked.append(q.popleft())
+        queues = [q for q in queues if q]
+    return picked
 
 
 def apply_persistence(articles: list) -> None:
@@ -588,9 +687,10 @@ def apply_persistence(articles: list) -> None:
     stable first-seen timestamp (today if this is the first run to see
     its id, carried forward unchanged otherwise -- render_html()'s
     payload exposes this as "firstSeen" for the client's new-since-last-
-    visit badge) and attempts full-text extraction for articles that
-    don't have it yet, up to EXTRACT_BUDGET_PER_RUN per run -- mutates
-    every article dict in place with "first_seen" and "raw_text" keys.
+    visit badge) and attempts full-text extraction for a fair spread of
+    the articles that don't have it yet, up to EXTRACT_BUDGET_PER_RUN per
+    run -- mutates every article dict in place with "first_seen" and
+    "raw_text" keys.
 
     Entries for ids no longer present in this run's article set are
     pruned once their first_seen is older than ARTICLES_RETENTION_DAYS --
@@ -605,36 +705,84 @@ def apply_persistence(articles: list) -> None:
     now_iso = now.isoformat()
     cutoff = now - timedelta(days=ARTICLES_RETENTION_DAYS)
 
-    budget = EXTRACT_BUDGET_PER_RUN
+    # Every article needs a row (and a stable first_seen) whether or not
+    # it wins an extraction slot -- do that first, so
+    # extraction_candidates() can read already-extracted state off the
+    # store for articles it's seeing for the first time this run.
     seen_ids = set()
     for a in articles:
         aid = article_id(a)
         seen_ids.add(aid)
-        row = store.get(aid)
-        if row is None:
-            row = {"first_seen": now_iso, "raw_text": None, "extract_ok": False, "extract_note": ""}
-            store[aid] = row
+        if aid not in store:
+            store[aid] = {"first_seen": now_iso, "raw_text": None, "extract_ok": False, "extract_note": ""}
 
-        if not row.get("extract_ok") and budget > 0 and a.get("link"):
-            budget -= 1
-            text, note = extract_full_text(a["link"])
-            if text:
-                row["raw_text"] = text
-                row["extract_ok"] = True
-                row["extract_note"] = ""
-            else:
-                row["extract_note"] = note
+    for i, a in enumerate(extraction_candidates(articles, store, EXTRACT_BUDGET_PER_RUN)):
+        row = store[article_id(a)]
+        text, note = extract_full_text(a["link"])
+        if text:
+            row["raw_text"] = text
+            row["extract_ok"] = True
+            row["extract_note"] = ""
+            row.pop("attempts", None)
+        else:
+            # Count attempts and stop after EXTRACT_MAX_ATTEMPTS. Without
+            # this, a permanently-failing article (a hard paywall, which
+            # extract_full_text reports as "too short or empty") is retried
+            # every run forever -- it never sets extract_ok, so it stays a
+            # candidate, and it holds the head of its source's queue while
+            # burning a request each time. ~32 runs/day makes that a lot of
+            # pointless traffic aimed at one publisher.
+            row["attempts"] = row.get("attempts", 0) + 1
+            row["extract_note"] = note
+            if row["attempts"] >= EXTRACT_MAX_ATTEMPTS:
+                row["extract_note"] = f"{note} (gave up after {row['attempts']} attempts)"
+        # Same politeness as the feed loop's own sleep -- these are up to
+        # EXTRACT_BUDGET_PER_RUN requests to publishers' article pages,
+        # and the round-robin above means consecutive ones usually hit
+        # different hosts, but not always. Skipped after the last one so
+        # a run doesn't end on a pointless wait.
+        if i < EXTRACT_BUDGET_PER_RUN - 1:
+            time.sleep(1)
 
-        a["first_seen"] = row["first_seen"]
+    for a in articles:
+        row = store[article_id(a)]
+        # .get with a fallback, not row["first_seen"]: load_articles_store()
+        # validates only "id", so a row missing first_seen (hand-edit, a
+        # half-repaired file, a future schema change) used to raise KeyError
+        # here -- and since the workflow runs without `set -e` and only
+        # emits ::warning::, that produced a green job publishing a stale
+        # page ~32x/day until someone noticed.
+        a["first_seen"] = row.get("first_seen") or now_iso
         a["raw_text"] = row.get("raw_text")
 
     def _still_fresh(row):
+        ts = row.get("first_seen")
+        if not ts:
+            return True    # keep it; the loop above will heal it next run
         try:
-            return datetime.fromisoformat(row["first_seen"]) >= cutoff
-        except (ValueError, KeyError, TypeError):
-            return False   # unparseable/missing timestamp -- drop it, don't crash the run
+            dt = datetime.fromisoformat(ts)
+        except (ValueError, TypeError):
+            return True    # unparseable -- keep the row (and its cached
+                           # raw_text) rather than silently deleting it
+        # A naive timestamp would raise TypeError comparing against an aware
+        # cutoff, which the old `except: return False` swallowed into
+        # "prune it" -- silently discarding rows *and* their multi-KB cached
+        # extraction on any timestamp-format drift. Normalize instead.
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt >= cutoff
 
-    pruned = {aid: row for aid, row in store.items() if aid in seen_ids or _still_fresh(row)}
+    # raw_text is dropped for rows absent from this run: the retention window
+    # exists so a briefly-disappearing story keeps its first_seen (and its
+    # "new" badge behaviour), not to cache text no card can reference. Left
+    # in, extracted bodies were 54% of the committed file's bytes from 4% of
+    # its rows -- and this file is rewritten and committed ~32x/day.
+    pruned = {}
+    for aid, row in store.items():
+        if aid in seen_ids:
+            pruned[aid] = row
+        elif _still_fresh(row):
+            pruned[aid] = {**row, "raw_text": None, "extract_ok": False, "extract_note": "dropped (out of deck)"}
     save_articles_store(pruned)
 
 
@@ -699,11 +847,28 @@ def _dedupe_articles_naive(articles: list) -> list:
     return out
 
 
+TOKEN_PREFIX_LEN = 4
+TOKEN_MIN_LEN = 3
+# Sentinel bucket every cluster is also indexed under, so a title that
+# produces no usable key at all is still reachable. Without it, a cluster
+# opened by such a title was in `clusters` but in zero index buckets --
+# unreachable from every later article, so its duplicates each started
+# their own card.
+_ALL_KEY = "\x00all"
+
+
 def _title_tokens(norm: str) -> set:
-    """Words over 3 chars -- long enough to be load-bearing (a proper noun,
-    a keyword) rather than a stopword ("the", "and") that would appear in
-    nearly every headline and defeat the index below."""
-    return {w for w in norm.split() if len(w) > 3}
+    """Index keys for a normalized title: the first TOKEN_PREFIX_LEN chars of
+    each word at least TOKEN_MIN_LEN long.
+
+    Truncating to a prefix is what makes inflected near-duplicates collide:
+    "rupee"/"rupees" and "poll"/"polls" both key to the same bucket, where
+    whole-word matching put them in different ones and silently lost the
+    merge even at ratio 0.94. The >=3 length floor (was >3) additionally
+    means an all-short-words headline like "PM to see the new car" still
+    produces keys instead of falling through to a full scan.
+    """
+    return {w[:TOKEN_PREFIX_LEN] for w in norm.split() if len(w) >= TOKEN_MIN_LEN}
 
 
 def dedupe_articles(articles: list) -> list:
@@ -718,22 +883,30 @@ def dedupe_articles(articles: list) -> list:
     pipeline's dominant cost past a few hundred articles (~14 min projected
     at the real ~3,000-article scale, most of a 45-min loop budget).
 
-    Two narrowings, both exact (neither can accept a pair the naive version
-    would have rejected, or reject one it would have accepted):
-      1. A token index maps each cluster's significant words (>3 chars) to
-         the cluster's index, so an article only gets compared against
-         clusters it shares at least one such word with -- two headlines
-         about the same story necessarily share a proper noun or keyword
-         at that length. Titles with no word that long (rare) fall back to
-         scanning every cluster, same as the naive version always does.
-      2. SequenceMatcher.real_quick_ratio()/quick_ratio() are cheap exact
-         upper bounds on ratio() -- checked first, so a pair that can't
-         possibly reach the threshold never pays for the real comparison.
+    Two narrowings, and it matters that they are NOT equally trustworthy:
+
+      1. SequenceMatcher.real_quick_ratio()/quick_ratio() are cheap, *exact*
+         upper bounds on ratio() -- a pair they reject provably could not
+         have reached the threshold, so skipping it changes nothing.
+      2. The token index (see _title_tokens) is a high-recall *heuristic*,
+         not an exact filter. An article is only compared against clusters
+         sharing at least one index key, so a near-duplicate pair sharing
+         no key is missed -- it becomes a second card instead of merging.
+         This was originally documented here as exact; that was wrong, and
+         two real counterexamples (a token-less title, and a pair whose only
+         long words differed by an inflection) are now regression tests. The
+         prefix-truncated keys plus the _ALL_KEY sentinel close both, and a
+         5,000-case adversarial fuzz over short/inflected/punctuation-heavy
+         titles finds no remaining divergence from the naive reference -- but
+         "no counterexample found" is not proof, and under-merging (a
+         leftover duplicate card) is the deliberately-chosen failure
+         direction here, same as DEDUPE_TITLE_THRESHOLD's.
+
     Candidates are still visited in creation order (ascending cluster
-    index) so first-match-wins semantics exactly match the naive version.
-    tests/test_pipeline.py::test_dedupe_matches_naive_reference asserts
-    the two produce identical output on every change here -- don't touch
-    either function without running it.
+    index) so first-match-wins semantics match the naive version.
+    tests/test_pipeline.py::test_dedupe_matches_naive_reference (fuzz) and
+    ::test_dedupe_known_index_counterexamples (the two cases above) both
+    assert equivalence -- don't touch either function without running them.
     """
     clusters = []   # each: {"anchor": str, "at": datetime|None, "rep": article, "members": [source]}
     token_index = defaultdict(list)   # token -> [cluster index, ...], append-order == creation order
@@ -751,10 +924,11 @@ def dedupe_articles(articles: list) -> list:
     for a in articles:
         norm = normalize_title(a["title"])
         toks = _title_tokens(norm)
-        if toks:
-            candidate_idxs = sorted(set().union(*(token_index[t] for t in toks)))
-        else:
-            candidate_idxs = range(len(clusters))
+        # Always include the sentinel bucket: it holds the (rare) clusters
+        # whose own title produced no keys, which no per-key lookup could
+        # otherwise reach.
+        lookup = set(toks) | {_ALL_KEY}
+        candidate_idxs = sorted(set().union(*(token_index[t] for t in lookup)))
 
         match = None
         for idx in candidate_idxs:
@@ -774,7 +948,9 @@ def dedupe_articles(articles: list) -> list:
         if match is None:
             clusters.append({"anchor": norm, "at": a["published"], "rep": a, "members": [a["source"]]})
             new_idx = len(clusters) - 1
-            for t in toks:
+            # A cluster with no keys of its own goes only into the sentinel
+            # bucket, which every lookup consults -- so it stays reachable.
+            for t in (toks or {_ALL_KEY}):
                 token_index[t].append(new_idx)
             continue
         # `anchor`/`at` deliberately stay pinned to the first article that
@@ -835,8 +1011,17 @@ def render_html(articles: list) -> str:
         }
         for a in sorted(articles, key=sort_key, reverse=True)
     ]
-    # '</script>' inside a title/snippet would otherwise close the tag early.
-    data_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
+    # Escape every '<' as the JSON < escape (identical value once parsed).
+    # Replacing only '</' isn't enough: '<!--' followed later by '<script'
+    # inside a <script> element pushes the HTML tokenizer into
+    # script-data-double-escaped state, where '</script>' no longer closes
+    # the element -- so the JSON block swallows this page's own closing tag
+    # AND the entire application script after it, and the deck renders blank
+    # with no error. A single feed headline like
+    # `Hackers post <!--<script>x</script>--> on site` was enough. Not XSS
+    # (the element is type="application/json", nothing executes), but a
+    # remote-content availability kill.
+    data_json = json.dumps(payload, ensure_ascii=False).replace("<", "\\u003c")
 
     return f"""<!doctype html>
 <html lang="en">
@@ -1063,20 +1248,31 @@ def render_html(articles: list) -> str:
   .chip:disabled {{ opacity: .35; cursor: default; pointer-events: none; }}
 
   /* ---- collapsible left drawer (topics + sources moved out of the top bar) ---- */
+  /* visibility, not just opacity/pointer-events, on every hidden overlay
+     below. opacity:0 alone leaves all descendants keyboard-focusable: an
+     already-onboarded user tabbing past the deck controls landed on the
+     *invisible* onboarding form's topic chips with no focus ring on screen,
+     and Enter there rewrote their saved interests and re-rendered the deck
+     with no visible cause. Same for the closed drawer (transform only) and
+     the reader. visibility is discretely animatable, so including it in the
+     transition keeps the fade-out intact -- it flips to hidden at the end
+     of the fade rather than instantly. */
   .scrim {{
     position: fixed; inset: 0; z-index: 29; background: var(--scrim);
-    opacity: 0; pointer-events: none; transition: opacity .25s var(--out);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity .25s var(--out), visibility .25s var(--out);
   }}
-  .scrim.show {{ opacity: 1; pointer-events: auto; }}
+  .scrim.show {{ opacity: 1; visibility: visible; pointer-events: auto; }}
   .drawer {{
     position: fixed; inset: 0 auto 0 0; z-index: 30; width: min(84vw, 320px);
     background: var(--glass); border-right: 1px solid var(--line);
     backdrop-filter: blur(38px) saturate(1.7); -webkit-backdrop-filter: blur(38px) saturate(1.7);
     box-shadow: var(--shadow-xl);
-    transform: translateX(-100%); transition: transform .32s var(--out);
+    transform: translateX(-100%); visibility: hidden;
+    transition: transform .32s var(--out), visibility .32s var(--out);
     display: flex; flex-direction: column; overflow: hidden;
   }}
-  .drawer.open {{ transform: translateX(0); }}
+  .drawer.open {{ transform: translateX(0); visibility: visible; }}
   .drawer-head {{
     flex: none; display: flex; align-items: center; justify-content: space-between;
     padding: 1rem 1.1rem; border-bottom: 3px double var(--ink);
@@ -1149,7 +1345,8 @@ def render_html(articles: list) -> str:
   .onb-scrim {{
     position: fixed; inset: 0; z-index: 15; background: var(--scrim);
     display: flex; align-items: flex-end; justify-content: center;
-    opacity: 0; pointer-events: none; transition: opacity .28s var(--out);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity .28s var(--out), visibility .28s var(--out);
   }}
   /* Sits below the header (z-index 20) on purpose: the onboarding prompt
      should gate the deck, not the hamburger/refresh controls. It used to sit
@@ -1158,7 +1355,7 @@ def render_html(articles: list) -> str:
      covers the full viewport for tap-outside-to-dismiss), but it meant that
      tap silently just closed the prompt instead of opening the drawer, which
      read as "the hamburger doesn't do anything." */
-  .onb-scrim.show {{ opacity: 1; pointer-events: auto; }}
+  .onb-scrim.show {{ opacity: 1; visibility: visible; pointer-events: auto; }}
   .onb {{
     position: relative;
     width: 100%; max-width: 480px; max-height: 86vh; overflow-y: auto;
@@ -1218,12 +1415,13 @@ def render_html(articles: list) -> str:
   .reader-scrim {{
     position: fixed; inset: 0; z-index: 40; background: var(--scrim);
     display: flex; align-items: center; justify-content: center; padding: 1.2rem;
-    opacity: 0; pointer-events: none; transition: opacity .25s var(--out);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity .25s var(--out), visibility .25s var(--out);
   }}
-  .reader-scrim.show {{ opacity: 1; pointer-events: auto; }}
+  .reader-scrim.show {{ opacity: 1; visibility: visible; pointer-events: auto; }}
   .reader {{
     width: 100%; max-width: 620px; max-height: 86vh; overflow-y: auto;
-    background: var(--card); border: 1px solid var(--ink); box-shadow: var(--shadow-xl);
+    background: var(--glass); border: 1px solid var(--ink); box-shadow: var(--shadow-xl);
     display: flex; flex-direction: column;
     transform: translateY(16px) scale(.98); transition: transform .3s var(--spring);
   }}
@@ -1231,7 +1429,7 @@ def render_html(articles: list) -> str:
   .reader-head {{
     flex: none; display: flex; align-items: center; justify-content: space-between;
     padding: 1rem 1.2rem; border-bottom: 3px double var(--ink); position: sticky; top: 0;
-    background: var(--card);
+    background: var(--glass);
   }}
   .reader-src {{
     font-family: var(--font-sans); font-weight: 700; font-size: .72rem; letter-spacing: .1em;
@@ -1759,7 +1957,7 @@ def render_html(articles: list) -> str:
   </div>
 
   <div class="reader-scrim" id="reader-scrim">
-    <article class="reader" role="dialog" aria-modal="true" aria-labelledby="reader-title">
+    <article class="reader" role="dialog" aria-labelledby="reader-title">
       <div class="reader-head">
         <span class="reader-src" id="reader-src"></span>
         <button class="reader-close" id="reader-close" aria-label="Close">
@@ -2139,6 +2337,12 @@ def render_html(articles: list) -> str:
         el.style.transform = 'translateY(' + (stackI * 11) + 'px) scale(' + (1 - stackI * 0.045) + ')';
         el.style.opacity = stackI === 2 ? '.55' : '.85';
         el.setAttribute('aria-hidden', 'true');
+        // aria-hidden alone doesn't remove the peeking cards' "Read here" /
+        // "Read full article" from the tab order -- focus landed on controls
+        // screen readers report as nothing, and activating a hidden card's
+        // "Read here" opened the reader for an article the deck wasn't
+        // showing. Take them out of the tab order to match the a11y tree.
+        el.querySelectorAll('a, button').forEach(function (n) {{ n.tabIndex = -1; }});
       }} else {{
         attachDrag(el);
         markSeen(a.id);
@@ -2709,6 +2913,11 @@ def render_html(articles: list) -> str:
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      // Any open overlay owns the keyboard. Without this, ArrowRight while
+      // the reader was open flew the card behind it off-screen and advanced
+      // the index, so Save/Share then acted on a different story than the
+      // one being read, and 's' saved an article the user couldn't see.
+      if (document.querySelector('.reader-scrim.show, .onb-scrim.show')) return;
       if (e.key === 'ArrowRight') {{
         e.preventDefault();
         var top = stage.querySelector('.card.top');
@@ -2876,6 +3085,9 @@ def render_html(articles: list) -> str:
     var readerTextEl = document.getElementById('reader-text');
     var readerSourceLink = document.getElementById('reader-source-link');
 
+    var readerCloseBtn = document.getElementById('reader-close');
+    var readerReturnFocus = null;
+
     function openReader(id) {{
       var a = all.find(function (x) {{ return x.id === id; }});
       if (!a || !a.fullText) return;
@@ -2886,12 +3098,37 @@ def render_html(articles: list) -> str:
       readerSourceLink.href = link || '#';
       readerSourceLink.style.display = link ? '' : 'none';
       readerScrim.classList.add('show');
+      // aria-modal is only truthful while the dialog is actually up, and a
+      // screen reader never enters a role="dialog" that has no focus in it.
+      readerScrim.querySelector('.reader').setAttribute('aria-modal', 'true');
+      readerReturnFocus = document.activeElement;
+      readerCloseBtn.focus();
     }}
-    function closeReader() {{ readerScrim.classList.remove('show'); }}
-    document.getElementById('reader-close').addEventListener('click', closeReader);
+    function closeReader() {{
+      if (!readerScrim.classList.contains('show')) return;
+      readerScrim.classList.remove('show');
+      readerScrim.querySelector('.reader').removeAttribute('aria-modal');
+      // Return focus to whatever opened it -- otherwise focus is left on a
+      // now-invisible button and the next Tab continues from nowhere.
+      if (readerReturnFocus && readerReturnFocus.focus) readerReturnFocus.focus();
+      readerReturnFocus = null;
+    }}
+    function readerOpen() {{ return readerScrim.classList.contains('show'); }}
+    readerCloseBtn.addEventListener('click', closeReader);
     readerScrim.addEventListener('click', function (e) {{ if (e.target === readerScrim) closeReader(); }});
     document.addEventListener('keydown', function (e) {{
-      if (e.key === 'Escape' && readerScrim.classList.contains('show')) closeReader();
+      if (!readerOpen()) return;
+      if (e.key === 'Escape') {{ closeReader(); return; }}
+      // Trap Tab inside the dialog. Without this, Tab walks straight out into
+      // the card deck behind the overlay (which isn't inert) and on through
+      // the whole page.
+      if (e.key !== 'Tab') return;
+      var f = readerScrim.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])');
+      var visible = Array.prototype.filter.call(f, function (el) {{ return el.offsetParent !== null; }});
+      if (!visible.length) return;
+      var first = visible[0], last = visible[visible.length - 1];
+      if (e.shiftKey && document.activeElement === first) {{ e.preventDefault(); last.focus(); }}
+      else if (!e.shiftKey && document.activeElement === last) {{ e.preventDefault(); first.focus(); }}
     }});
 
     /* ---------- onboarding: "what do you want to see" first-run form ---------- */
@@ -3058,7 +3295,13 @@ def main() -> int:
         reverse=True,
     )
     deck = deduped
-    sourced = len({a["source"] for a in deck})
+    # Representatives *and* merged contributors. A feed whose every article
+    # lost the better() contest still appears on a card's "also on" line --
+    # it visibly contributed. Counting only representatives undercounted
+    # structurally, since feeds.yaml is deliberately curated for overlap.
+    sourced = len(
+        {a["source"] for a in deck} | {s for a in deck for s in a.get("also_from", [])}
+    )
 
     out = [
         "# Feed check",
