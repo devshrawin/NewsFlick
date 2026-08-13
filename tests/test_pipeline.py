@@ -266,3 +266,57 @@ def test_classify_region_keyword_wins_over_default():
     # A domestic feed's story specifically about China must resolve to Asia,
     # not fall back to the feed's India default.
     assert cf.classify_region("PM meets Chinese premier in Beijing", "", default_region="India") == "Asia"
+
+
+# ---------- first_seen persistence (data/first_seen.jsonl) ----------
+
+def test_article_id_stable_and_falls_back_to_source_title():
+    a = _article("PTI", "Some headline", datetime(2026, 1, 1, tzinfo=timezone.utc))
+    assert cf.article_id(a) == cf.article_id(dict(a))  # same input -> same id
+    a["link"] = ""
+    b = dict(a)
+    assert cf.article_id(a) == cf.article_id(b)  # no link -> source+title fallback, still stable
+
+
+def test_apply_first_seen_assigns_now_on_first_sighting(monkeypatch, tmp_path):
+    monkeypatch.setattr(cf, "FIRST_SEEN_FILE", tmp_path / "first_seen.jsonl")
+    arts = [_article("A", "Brand new story here", datetime(2026, 1, 1, tzinfo=timezone.utc))]
+    cf.apply_first_seen(arts)
+    assert arts[0]["first_seen"] is not None
+    stored = cf.load_first_seen()
+    assert cf.article_id(arts[0]) in stored
+
+
+def test_apply_first_seen_preserves_timestamp_across_runs(monkeypatch, tmp_path):
+    monkeypatch.setattr(cf, "FIRST_SEEN_FILE", tmp_path / "first_seen.jsonl")
+    a = _article("A", "A story that persists", datetime(2026, 1, 1, tzinfo=timezone.utc))
+    cf.apply_first_seen([a])
+    first_ts = a["first_seen"]
+
+    # Same article (by id), a "later run" -- must keep the original timestamp,
+    # not overwrite it with whatever "now" is on the second call.
+    a2 = _article("A", "A story that persists", datetime(2026, 1, 1, tzinfo=timezone.utc))
+    cf.apply_first_seen([a2])
+    assert a2["first_seen"] == first_ts
+
+
+def test_apply_first_seen_prunes_only_stale_absent_ids(monkeypatch, tmp_path):
+    monkeypatch.setattr(cf, "FIRST_SEEN_FILE", tmp_path / "first_seen.jsonl")
+    old_id = "deadbeef01"
+    now = datetime.now(timezone.utc)
+    too_old = (now - timedelta(days=cf.FIRST_SEEN_RETENTION_DAYS + 1)).isoformat()
+    still_fresh = (now - timedelta(days=1)).isoformat()
+    cf.save_first_seen({old_id: too_old, "keepme01": still_fresh})
+
+    a = _article("A", "Some other current story", now)
+    cf.apply_first_seen([a])
+
+    stored = cf.load_first_seen()
+    assert old_id not in stored           # absent from this run AND past retention -> pruned
+    assert "keepme01" in stored           # absent from this run but still within retention -> kept
+    assert cf.article_id(a) in stored     # present in this run -> always kept
+
+
+def test_load_first_seen_missing_file_is_empty_not_an_error(monkeypatch, tmp_path):
+    monkeypatch.setattr(cf, "FIRST_SEEN_FILE", tmp_path / "does-not-exist.jsonl")
+    assert cf.load_first_seen() == {}

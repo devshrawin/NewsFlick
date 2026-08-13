@@ -84,7 +84,7 @@ jobs:
               echo "::warning::check_feeds.py failed this iteration -- will retry after the sleep"
             fi
 
-            git add docs/
+            git add docs/ data/
             if git diff --staged --quiet; then
               echo "No change in report — nothing to commit."
             else

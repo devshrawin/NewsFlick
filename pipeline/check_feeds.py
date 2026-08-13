@@ -24,7 +24,7 @@ import sys
 import time
 import statistics
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -39,6 +39,11 @@ NOT_RATED = {"leaning": "Not rated", "cite_name": None, "cite_url": None}
 REPORT_MD = ROOT / "docs" / "feed_check.md"
 REPORT_JSON = ROOT / "docs" / "feed_check.json"
 REPORT_HTML = ROOT / "docs" / "index.html"
+# Sorted-append JSONL, not SQLite: committed every run, so it needs to
+# delta-compress in git. A rewritten-every-run SQLite file wouldn't -- git
+# stores a new blob for the whole thing on every commit, ~32x/day forever.
+FIRST_SEEN_FILE = ROOT / "data" / "first_seen.jsonl"
+FIRST_SEEN_RETENTION_DAYS = 14
 
 # Polite, identifiable UA tried first.
 UA_BOT = "NewsFlick/0.1 (personal research; +https://github.com/devshrawin/newsdigest)"
@@ -503,6 +508,89 @@ def load_bias() -> dict:
     return out
 
 
+def article_id(a: dict) -> str:
+    """Stable id -- same formula render_html() used to compute inline.
+    Factored out so main() can key first_seen tracking off the identical
+    id the payload/share-link/saved-list use, without a second definition
+    drifting out of sync. Falls back to source+title because entry_link()
+    returns "" for entries with no <link>, and every one of those would
+    otherwise hash to the same id."""
+    return hashlib.sha1(
+        (a["link"] or f"{a['source']}\x00{a['title']}").encode("utf-8")
+    ).hexdigest()[:10]
+
+
+def load_first_seen() -> dict:
+    """id -> ISO timestamp of the first run that saw this article. Missing
+    file (first run ever, or a fresh checkout) is just an empty map, not
+    an error -- this is a cache, not a source of truth."""
+    if not FIRST_SEEN_FILE.exists():
+        return {}
+    out = {}
+    for line in FIRST_SEEN_FILE.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+            out[row["id"]] = row["first_seen"]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            continue   # one corrupt line shouldn't blank the whole cache
+    return out
+
+
+def save_first_seen(mapping: dict) -> None:
+    # Sorted by id, one compact JSON object per line -- git diffs cleanly
+    # (only genuinely new/pruned lines change) and delta-compresses well
+    # across the ~32 commits/day this file gets rewritten into.
+    FIRST_SEEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        json.dumps({"id": aid, "first_seen": ts}, ensure_ascii=False, separators=(",", ":"))
+        for aid, ts in sorted(mapping.items())
+    ]
+    FIRST_SEEN_FILE.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+def apply_first_seen(articles: list) -> None:
+    """Assigns each article's stable first-seen timestamp (today, if this
+    is the first run to see its id; carried forward unchanged otherwise)
+    and mutates every article dict in place with a "first_seen" key, which
+    render_html()'s payload then exposes as "firstSeen" for the client's
+    new-since-last-visit tracking.
+
+    Entries for ids no longer present in this run's article set are pruned
+    once they're older than FIRST_SEEN_RETENTION_DAYS -- kept a little
+    past the point they'd matter for "new since last visit" in case a
+    story briefly drops out of a feed and reappears, dropped eventually so
+    the file doesn't grow forever.
+    """
+    existing = load_first_seen()
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    cutoff = now - timedelta(days=FIRST_SEEN_RETENTION_DAYS)
+
+    seen_ids = set()
+    for a in articles:
+        aid = article_id(a)
+        seen_ids.add(aid)
+        ts = existing.get(aid)
+        if ts is None:
+            ts = now_iso
+            existing[aid] = ts
+        a["first_seen"] = ts
+
+    def _still_fresh(aid, ts):
+        if aid in seen_ids:
+            return True
+        try:
+            return datetime.fromisoformat(ts) >= cutoff
+        except ValueError:
+            return False   # unparseable timestamp -- drop it, don't crash the run
+
+    pruned = {aid: ts for aid, ts in existing.items() if _still_fresh(aid, ts)}
+    save_first_seen(pruned)
+
+
 def source_initials(name: str) -> str:
     words = [w for w in re.split(r"\s+", name.strip()) if w]
     if not words:
@@ -714,13 +802,7 @@ def render_html(articles: list) -> str:
 
     payload = [
         {
-            # Falls back to source+title because entry_link() returns "" for
-            # entries with no <link>, and every one of those would otherwise
-            # hash to the same id -- collapsing them in the share deep-link,
-            # the saved list, and the click handler's all.find().
-            "id": hashlib.sha1(
-                (a["link"] or f"{a['source']}\x00{a['title']}").encode("utf-8")
-            ).hexdigest()[:10],
+            "id": article_id(a),
             "source": a["source"],
             "title": a["title"],
             "link": a["link"],
@@ -734,6 +816,11 @@ def render_html(articles: list) -> str:
             "leaning": bias.get(a["source"], NOT_RATED)["leaning"],
             "citeName": bias.get(a["source"], NOT_RATED)["cite_name"],
             "citeUrl": bias.get(a["source"], NOT_RATED)["cite_url"],
+            # Set by main()'s apply_first_seen() over the full deduped set
+            # before DECK_LIMIT truncation -- absent (None) only if
+            # render_html() is ever called directly on articles that skipped
+            # that step (e.g. a test fixture).
+            "firstSeen": a.get("first_seen"),
         }
         for a in sorted(articles, key=sort_key, reverse=True)
     ]
@@ -910,6 +997,17 @@ def render_html(articles: list) -> str:
     font-family: var(--font-serif); font-size: 1.4rem; font-weight: 800; letter-spacing: -.02em;
   }}
   .brand-mark {{ width: 1.5rem; height: 1.5rem; flex: none; }}
+  /* "N new" since the visitor's last visit (localStorage timestamp vs.
+     each card's server-computed firstSeen) -- distinct from the drawer's
+     within-session Unread jump, which only knows what THIS tab has
+     scrolled past. Hidden entirely on a first-ever visit: everything is
+     technically "new" then, which isn't a meaningful signal. */
+  .new-badge {{
+    font-family: var(--font-mono); font-size: .64rem; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--bg); background: var(--accent);
+    border: 0; border-radius: 0; padding: .28rem .5rem; cursor: pointer; margin-left: .2rem;
+  }}
+  .new-badge:hover {{ opacity: .85; }}
   .ghost {{
     display: inline-flex; align-items: center; gap: .34rem;
     border: 1px solid var(--line-2); background: var(--glass-2); color: var(--sub);
@@ -1473,6 +1571,7 @@ def render_html(articles: list) -> str:
       <div class="brand">
         <img class="brand-mark" src="icon-192.png" alt="" width="192" height="192">
         NewsFlick
+        <button class="new-badge" id="new-badge" type="button" hidden></button>
       </div>
     </div>
     <div class="rail"><i id="rail"></i></div>
@@ -2743,6 +2842,33 @@ def render_html(articles: list) -> str:
       render();
     }}
 
+    // "N new" since the visitor's last visit -- a persisted localStorage
+    // timestamp compared against each card's server-computed firstSeen
+    // (main()'s apply_first_seen(), tracked in data/first_seen.jsonl).
+    // Distinct from `seen`/Unread above, which is session-only and knows
+    // nothing once the tab closes; this is what actually answers "what's
+    // new since I was last here". Hidden on a true first visit -- with no
+    // prior timestamp to compare against, everything would show as "new",
+    // which isn't a meaningful signal.
+    var LAST_VISIT_KEY = 'newsdigest:lastVisit';
+    var newBadge = document.getElementById('new-badge');
+    var lastVisit = null;
+    try {{ lastVisit = localStorage.getItem(LAST_VISIT_KEY); }} catch (e) {{}}
+    if (lastVisit) {{
+      var newIds = all.filter(function (a) {{ return a.firstSeen && a.firstSeen > lastVisit; }})
+        .map(function (a) {{ return a.id; }});
+      if (newIds.length) {{
+        newBadge.hidden = false;
+        newBadge.textContent = newIds.length + ' new';
+        newBadge.addEventListener('click', function () {{
+          var pos = filtered().findIndex(function (a) {{ return newIds.indexOf(a.id) > -1; }});
+          if (pos >= 0) {{ index = pos; render(); }}
+          else toast("Nothing new matches the current filters");
+        }});
+      }}
+    }}
+    try {{ localStorage.setItem(LAST_VISIT_KEY, new Date().toISOString()); }} catch (e) {{}}
+
     var alreadyOnboarded = false;
     try {{ alreadyOnboarded = !!localStorage.getItem(ONBOARDED_KEY); }} catch (e) {{ alreadyOnboarded = true; }}
     if (!alreadyOnboarded && topics.length) {{
@@ -2795,6 +2921,10 @@ def main() -> int:
     # never showed up in the Actions job summary (head -12 feed_check.md).
     deduped = dedupe_articles(all_articles)
     merged = len(all_articles) - len(deduped)
+    # Over the full deduped set, not just the DECK_LIMIT-capped deck below --
+    # a story that misses this run's deck cutoff still deserves a stable
+    # first-seen timestamp if it resurfaces once older cards age out.
+    apply_first_seen(deduped)
     # No longer dropped. This filter existed because the card used to put
     # the image in a top masthead band -- a missing image left a visibly
     # broken-looking card, so whole categories (Factly, Alt News, MyGov,
