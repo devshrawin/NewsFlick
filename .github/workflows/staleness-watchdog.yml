@@ -1,0 +1,78 @@
+name: Staleness watchdog
+
+# The check-feeds loop can die mid-block (a runner eviction, an unhandled
+# error, a cancelled run) and nothing notices: the job may even be green,
+# docs/ keeps serving the last good build, and the next restart isn't until
+# the coarse 6-hourly cron. Two real chain deaths on 2026-08-13 went
+# unnoticed for 3h57m and 2h40m that way -- the only symptom was the site
+# quietly showing "Updated Xh ago".
+#
+# This is the missing signal: a tiny scheduled job that reads the timestamp
+# check_feeds.py already writes into docs/feed_check.json and fails loudly
+# if it's too old. Failing is the point -- a failed run emails the repo
+# owner by default, which is the whole alerting mechanism.
+#
+# Deliberately a separate workflow, not a step inside check-feeds: a watchdog
+# that only runs when the thing it watches is healthy is useless.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every 2h at :41, offset off the busy :00 slot and off check-feeds'
+    # own ":11 */6" so the two don't contend for the same scheduler window.
+    - cron: "41 */2 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  check-freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Fail if the published report is stale
+        run: |
+          set -uo pipefail
+
+          # Tolerance, in minutes. The loop targets a 45-min cadence; a
+          # restart gap plus one slow iteration can legitimately reach ~90.
+          # 150 is "something is actually wrong", not "a run ran long".
+          MAX_AGE_MIN=150
+
+          REPORT="docs/feed_check.json"
+          if [ ! -f "$REPORT" ]; then
+            echo "::error::${REPORT} is missing entirely -- the pipeline has never published, or docs/ was clobbered."
+            exit 1
+          fi
+
+          CHECKED_AT="$(python -c "import json;print(json.load(open('${REPORT}',encoding='utf-8'))['checked_at'])")"
+          if [ -z "$CHECKED_AT" ]; then
+            echo "::error::could not read checked_at out of ${REPORT}"
+            exit 1
+          fi
+
+          AGE_MIN="$(python -c "
+          from datetime import datetime, timezone
+          ts = datetime.fromisoformat('${CHECKED_AT}')
+          if ts.tzinfo is None:
+              ts = ts.replace(tzinfo=timezone.utc)
+          print(int((datetime.now(timezone.utc) - ts).total_seconds() // 60))
+          ")"
+
+          echo "Last published run: ${CHECKED_AT} (${AGE_MIN} min ago, tolerance ${MAX_AGE_MIN} min)"
+          {
+            echo "### Staleness watchdog"
+            echo ""
+            echo "- Last published run: \`${CHECKED_AT}\`"
+            echo "- Age: **${AGE_MIN} min** (tolerance ${MAX_AGE_MIN} min)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$AGE_MIN" -gt "$MAX_AGE_MIN" ]; then
+            echo "::error::Feed report is ${AGE_MIN} min old (> ${MAX_AGE_MIN}). The check-feeds loop is probably dead -- re-run it from the Actions tab."
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**STALE** — re-run the \`Check feeds\` workflow." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Fresh." >> "$GITHUB_STEP_SUMMARY"
