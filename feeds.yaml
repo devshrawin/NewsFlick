@@ -155,6 +155,11 @@ feeds:
     url: https://www.skysports.com/rss/12040
 
   # --- Entertainment ---
+  # Deadline + Rolling Stone added 2026-08-13: a topic-count audit of a
+  # live run (2,203-article deck) found Entertainment at 72 -- the
+  # thinnest real topic bucket once Health (fixed same day, see below)
+  # is excluded. Distinct angles from the existing four: industry/deals
+  # coverage and music/culture, not more Bollywood-or-Hollywood-review overlap.
   - name: Bollywood Hungama
     url: https://www.bollywoodhungama.com/feed/
     region: India
@@ -165,6 +170,10 @@ feeds:
     url: https://variety.com/feed/
   - name: Hollywood Reporter
     url: https://www.hollywoodreporter.com/feed/
+  - name: Deadline
+    url: https://deadline.com/feed/
+  - name: Rolling Stone
+    url: https://www.rollingstone.com/feed/
 
   # --- Health ---
   # Added 2026-08-13 to fill a real gap: classify_topic() has had a Health
@@ -253,3 +262,24 @@ feeds:
     url: https://api.axios.com/feed/
   - name: The Hill
     url: https://thehill.com/feed/
+
+  # --- Region gap-fill, added 2026-08-13 ---
+  # Same audit as the Entertainment additions above, by region instead of
+  # topic: Africa (15 articles) and Oceania (30) were by far the thinnest
+  # of the 8 classify_region() buckets in the same 2,203-article sample --
+  # nothing here was ever dedicated regional coverage, just whatever a
+  # generic World feed happened to keyword-match. Middle East (62) was the
+  # next-thinnest non-India bucket; added one dedicated source for it too,
+  # stopped there rather than padding every bucket up to parity.
+  - name: AllAfrica
+    url: https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf
+    region: Africa
+  - name: BBC Africa
+    url: https://feeds.bbci.co.uk/news/world/africa/rss.xml
+    region: Africa
+  - name: ABC News Australia
+    url: https://www.abc.net.au/news/feed/51120/rss.xml
+    region: Oceania
+  - name: Middle East Eye
+    url: https://www.middleeasteye.net/rss
+    region: Middle East
