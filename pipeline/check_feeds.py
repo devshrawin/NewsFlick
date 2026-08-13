@@ -23,7 +23,7 @@ import re
 import sys
 import time
 import statistics
-from collections import defaultdict, deque
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -68,12 +68,6 @@ MAX_BYTES = 8 * 1024 * 1024   # refuse to buffer a runaway feed
 # clustering pass mark. Tune here, not there.
 DEDUPE_TITLE_THRESHOLD = 0.78
 DEDUPE_WINDOW_HOURS = 20   # only merge articles whose published times are this close
-
-# 32 feeds produce ~1900 cards an hour, which embedded as JSON made index.html
-# 1.3 MB -- a slow load on the phone this is meant to be read on, for a deck
-# nobody swipes a tenth of. Newest N survive; the count dropped is printed, not
-# swallowed. The full set is still in feed_check.json.
-DECK_LIMIT = 400
 
 
 def strip_html(text: str) -> str:
@@ -749,42 +743,6 @@ def dedupe_articles(articles: list) -> list:
     return out
 
 
-def round_robin_by_source(articles: list, limit: int) -> list:
-    """Cap the deck at `limit` without letting whichever publisher posts
-    most often crowd out everyone else. A straight "sort by time, take the
-    newest N" let two cricket feeds alone eat a quarter of a 400-card deck
-    on a normal day -- posting frequency, not relevance, decided who made
-    the cut. This drains one article per source per round instead, so a
-    low-volume feed's newest item competes on recency against a
-    high-volume feed's newest item, not against that feed's whole backlog.
-
-    `articles` must already be sorted newest-first; each source's queue
-    then drains oldest-of-its-newest first, which is what makes the
-    interleave fair rather than favoring whichever source happens to sort
-    first within a round.
-    """
-    by_source = defaultdict(deque)
-    for a in articles:
-        by_source[a["source"]].append(a)
-
-    deck = []
-    queues = list(by_source.values())
-    while len(deck) < limit and queues:
-        for q in queues:
-            if not q:
-                continue
-            if len(deck) >= limit:
-                break
-            deck.append(q.popleft())
-        queues = [q for q in queues if q]
-
-    deck.sort(
-        key=lambda a: a["published"] or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True,
-    )
-    return deck
-
-
 def render_html(articles: list) -> str:
     """Self-contained swipeable article deck -- open docs/index.html (or
     the Pages URL) instead of poking at news.db to see what the feeds have.
@@ -816,8 +774,7 @@ def render_html(articles: list) -> str:
             "leaning": bias.get(a["source"], NOT_RATED)["leaning"],
             "citeName": bias.get(a["source"], NOT_RATED)["cite_name"],
             "citeUrl": bias.get(a["source"], NOT_RATED)["cite_url"],
-            # Set by main()'s apply_first_seen() over the full deduped set
-            # before DECK_LIMIT truncation -- absent (None) only if
+            # Set by main()'s apply_first_seen() -- absent (None) only if
             # render_html() is ever called directly on articles that skipped
             # that step (e.g. a test fixture).
             "firstSeen": a.get("first_seen"),
@@ -1278,11 +1235,6 @@ def render_html(articles: list) -> str:
     background: linear-gradient(to top, var(--bg-2), transparent);
     pointer-events: none;
   }}
-  .media-cap {{
-    position: absolute; left: .5rem; bottom: .5rem;
-    font-family: var(--font-mono); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase;
-    color: var(--bg); background: rgba(0,0,0,.55); padding: .22rem .45rem;
-  }}
   /* No overflow-y here on purpose: a scrollable body inside a
      pointer-drag-driven card fights the swipe gesture and, on some
      browsers, paints its own bulky native scrollbar over the card. The
@@ -1413,13 +1365,6 @@ def render_html(articles: list) -> str:
   .rnd.solid:hover {{ color: var(--bg); border-color: var(--ink); opacity: .85; }}
   .ctrls-sep {{ width: 1px; align-self: stretch; background: var(--line-2); margin: 0 .3rem; }}
   .count {{ text-align: center; color: var(--sub); font-size: .78rem; margin-bottom: .7rem; font-variant-numeric: tabular-nums; }}
-  .deck-status {{
-    display: flex; align-items: baseline; justify-content: center; gap: .6rem;
-    font-family: var(--font-mono); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: var(--sub);
-    margin-bottom: .6rem; font-variant-numeric: tabular-nums;
-  }}
-  .deck-status .sep {{ width: 1px; height: .65rem; background: var(--line-2); }}
-  .deck-status:empty {{ display: none; }}
 
   .queue {{ display: none; }}
   .queue-head {{
@@ -1632,7 +1577,6 @@ def render_html(articles: list) -> str:
 
   <div class="layout">
     <div>
-      <div class="deck-status" id="deck-status"></div>
       <main class="stage" id="stage" aria-live="polite"></main>
       <div class="count" id="count"></div>
       <nav class="ctrls" aria-label="Article controls">
@@ -1710,7 +1654,6 @@ def render_html(articles: list) -> str:
     var countEl = document.getElementById('count');
     var railEl = document.getElementById('rail');
     var freshEl = document.getElementById('fresh');
-    var deckStatusEl = document.getElementById('deck-status');
     var toastEl = document.getElementById('toast');
     var prevBtn = document.getElementById('prev');
     var nextBtn = document.getElementById('next');
@@ -1988,7 +1931,7 @@ def render_html(articles: list) -> str:
       // now, matching the "lead image" placement in the mockup -- text reads
       // first, the photo is a footnote to it, not a masthead.
       var media = img
-        ? '<div class="media"><img alt="" draggable="false" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(img) + '"><div class="scrim"></div><span class="media-cap">lead image &middot; from feed</span></div>'
+        ? '<div class="media"><img alt="" draggable="false" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(img) + '"><div class="scrim"></div></div>'
         : '';
       var also = (a.alsoFrom && a.alsoFrom.length)
         ? '<div class="also">also on <b>' + a.alsoFrom.map(esc).join('</b>, <b>') + '</b></div>'
@@ -2064,9 +2007,6 @@ def render_html(articles: list) -> str:
       ctrlSaveBtn.classList.toggle('on', curSaved);
       ctrlSaveBtn.setAttribute('aria-pressed', curSaved ? 'true' : 'false');
       ctrlSaveLabelEl.textContent = curSaved ? 'Saved' : 'Save';
-      deckStatusEl.innerHTML = (list.length && index < list.length)
-        ? 'Story ' + (index + 1) + ' of ' + list.length + '<span class="sep"></span>drag either way = next'
-        : '';
     }}
 
     // Full rebuild: destroys and recreates the whole stack. Correct after
@@ -2916,31 +2856,30 @@ def main() -> int:
     contributing = len([r for r in rows if r["ok"]])
 
     # Deck-building happens here, before feed_check.md is assembled, so its
-    # stats (merges/no-image/deck-limit drops) can land in the report's
-    # summary bullets -- they used to only reach print(), which meant they
-    # never showed up in the Actions job summary (head -12 feed_check.md).
+    # stats (merges/no-image drops) can land in the report's summary
+    # bullets -- they used to only reach print(), which meant they never
+    # showed up in the Actions job summary (head -12 feed_check.md).
     deduped = dedupe_articles(all_articles)
     merged = len(all_articles) - len(deduped)
-    # Over the full deduped set, not just the DECK_LIMIT-capped deck below --
-    # a story that misses this run's deck cutoff still deserves a stable
-    # first-seen timestamp if it resurfaces once older cards age out.
+    after_merge = len(deduped)
+    # Dropped, not shown text-only. Briefly rendered text-only when the
+    # card layout put the image in a top masthead band and cardMarkup()
+    # had a generated-cover fallback tried and reverted; then the filter
+    # itself was dropped for a stretch when the image moved to a bottom
+    # band and a missing one no longer looked broken. Restored again on
+    # explicit preference -- don't re-drop this filter without checking
+    # first, it's flipped twice already.
+    no_image = after_merge - len([a for a in deduped if a.get("image")])
+    deduped = [a for a in deduped if a.get("image")]
+    # Runs over the post-image-filter set -- no point persisting a
+    # first-seen timestamp in data/first_seen.jsonl for an article that
+    # can never appear in the deck.
     apply_first_seen(deduped)
-    # No longer dropped. This filter existed because the card used to put
-    # the image in a top masthead band -- a missing image left a visibly
-    # broken-looking card, so whole categories (Factly, Alt News, MyGov,
-    # Economic Times) got silently zeroed out rather than shown with a
-    # generated cover (tried, reverted on explicit preference at the time).
-    # The card layout changed since: the image now sits below the text as
-    # a flexible band, and cardMarkup() already renders cleanly with none
-    # (media == ''). A text-only card is a normal card now, not a broken
-    # one, so the reason for dropping it is gone.
-    no_image = len(deduped) - len([a for a in deduped if a.get("image")])
     deduped.sort(
         key=lambda a: a["published"] or datetime.min.replace(tzinfo=timezone.utc),
         reverse=True,
     )
-    dropped = max(0, len(deduped) - DECK_LIMIT)
-    deck = round_robin_by_source(deduped, DECK_LIMIT)
+    deck = deduped
     sourced = len({a["source"] for a in deck})
 
     out = [
@@ -2954,10 +2893,9 @@ def main() -> int:
         f"(<{STUB_THRESHOLD} chars) -> need article extraction",
         f"- {len(all_articles)} articles from {contributing} feeds "
         f"(includes STALE/FUTURE/NO DATES, not just the {len(live)} graded OK) "
-        f"-> {len(deduped)} after merging {merged} cross-agency duplicate{'s' if merged != 1 else ''}"
-        + (f" ({no_image} have no lead image, shown text-only)" if no_image else ""),
-        f"- {sourced} feeds contributed to the {len(deck)}-card deck"
-        + (f" ({dropped} older card{'s' if dropped != 1 else ''} not shown, DECK_LIMIT={DECK_LIMIT})" if dropped else ""),
+        f"-> {after_merge} after merging {merged} cross-agency duplicate{'s' if merged != 1 else ''}"
+        + (f" -> {len(deduped)} after dropping {no_image} with no lead image" if no_image else ""),
+        f"- {sourced} feeds contributed to the {len(deck)}-card deck",
         "",
         f"Legend: OK / FUTURE (publisher clock wrong) / STALE (>{STALE_HOURS}h) / NO DATES / DEAD",
         "",
@@ -2997,13 +2935,11 @@ def main() -> int:
 
     print(f"\nwrote {REPORT_MD.name} + {REPORT_JSON.name} + {REPORT_HTML.name}")
     print(f"  {len(live)}/{len(rows)} feeds graded OK, {contributing} contributed articles, {sourced} made the deck")
-    print(f"  {len(all_articles)} articles -> {len(deduped)} after merging "
+    print(f"  {len(all_articles)} articles -> {after_merge} after merging "
           f"{merged} cross-agency duplicate{'s' if merged != 1 else ''}")
     if no_image:
-        print(f"  {no_image} card{'s' if no_image != 1 else ''} have no lead image, shown text-only")
-    if dropped:
-        print(f"  deck capped at {DECK_LIMIT}: {dropped} older card"
-              f"{'s' if dropped != 1 else ''} not shown (raise DECK_LIMIT to include them)")
+        print(f"  {no_image} card{'s' if no_image != 1 else ''} dropped for having no image "
+              f"-> {len(deduped)} in the deck")
     return 0
 
 

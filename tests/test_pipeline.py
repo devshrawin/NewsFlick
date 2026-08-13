@@ -213,25 +213,6 @@ def test_dedupe_matches_naive_reference_with_no_dates():
     assert cf.dedupe_articles(arts) == cf._dedupe_articles_naive(arts)
 
 
-# ---------- round_robin_by_source: no single source crowds out the rest ----------
-
-def test_round_robin_caps_high_volume_source():
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    arts = [_article("Prolific", f"story {i}", now - timedelta(minutes=i)) for i in range(100)]
-    arts += [_article("Quiet", "the one story", now)]
-    deck = cf.round_robin_by_source(arts, limit=10)
-    sources = [a["source"] for a in deck]
-    assert "Quiet" in sources  # would be crowded out by a pure recency sort
-    assert len(deck) == 10
-
-
-def test_round_robin_sorted_newest_first():
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    arts = [_article("A", "t1", now - timedelta(hours=2)), _article("B", "t2", now)]
-    deck = cf.round_robin_by_source(arts, limit=10)
-    assert deck[0]["source"] == "B"
-
-
 # ---------- entry_image: skip tracking pixels ----------
 
 def test_entry_image_skips_declared_tiny_dimensions():
