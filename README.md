@@ -100,7 +100,8 @@ wired up — every run re-fetches all feeds from scratch and keeps nothing.
 ## Persistence
 
 `data/articles.jsonl` — one JSON object per line, sorted by id (git-diffable
-and delta-compresses across the ~32 commits/day the scheduler makes; a
+and delta-compresses across the ~28-30 commits/day the scheduler makes (a
+5h20m block at a 45-min cadence is ~7 iterations, 4 blocks/day); a
 rewritten-every-run SQLite file couldn't). Started as `first_seen.jsonl`
 (just an id → timestamp map, renamed+extended once it grew a second job —
 see the audit note below for the exact row shape and why one file, not two).
@@ -117,10 +118,32 @@ Two things it does:
   teaser, exposed as each card's `fullText`. Capped at
   `EXTRACT_BUDGET_PER_RUN` (40) attempts per run — a network fetch per
   article isn't free, so the backlog drains gradually across runs instead of
-  adding 40×(fetch time) to every single loop iteration. A successful
-  extraction is cached forever (`extract_ok: true`, never retried); a failed
-  one (`extract_note` says why — HTTP status, paywall/interstitial, timeout)
-  is retried on a later run.
+  adding 40×(fetch time) to every loop iteration. A successful extraction is
+  cached forever (`extract_ok: true`, never retried); a failure records why
+  in `extract_note` and is retried on a later run, up to
+  `EXTRACT_MAX_ATTEMPTS` (3) before giving up on that article for good.
+
+  **The budget is spread one-per-source-per-round, not first-come.** This
+  matters more than it sounds: articles reach `apply_persistence()` in
+  `feeds.yaml` order, so a plain linear scan gave the entire budget to
+  whichever feeds are listed first. Measured before the fix — 95 of 100
+  extracted articles in the deck came from 3 of 78 feeds, and **43 of 51
+  deck sources had zero**. Full-text was silently a 3-feed feature. Same
+  fairness problem, and the same round-robin fix, as the deck's
+  since-removed `round_robin_by_source`.
+
+  The fetch is also treated as hostile input, because it is: the URL comes
+  from a third-party feed's `<link>` and whatever comes back gets committed
+  to a public repo and published. Non-`http(s)` schemes are refused, and the
+  body is read streaming under the same `MAX_BYTES` cap the feed path uses
+  (it previously read `resp.content` unbounded — a `<link>` pointing at a
+  video or large binary would buffer the whole thing into the runner's RAM).
+
+  `raw_text` is dropped for rows no longer in the deck. The retention window
+  exists to keep `first_seen` stable across a story briefly disappearing,
+  not to cache text no card can reference — left in, extracted bodies were
+  54% of the committed file's bytes from 4% of its rows, in a file rewritten
+  and committed ~32×/day.
 
 `seen` (which articles you've swiped past *this session*) is still
 `sessionStorage`-only and unrelated to any of this — closing the tab forgets
@@ -140,12 +163,40 @@ new since I was last here".
 
 ## Running the feed check
 
-One job loops internally -- check feeds, commit, `sleep` 45 minutes,
-repeat -- for up to ~5h40m, then a coarse `schedule` trigger (every 6h)
-starts the next block. Or run it on demand from Actions tab →
+One job loops internally -- check feeds, commit, sleep, repeat -- for up to
+**5h20m** (`END = start + 5*3600 + 20*60`), then a coarse `schedule` trigger
+(every 6h) starts the next block. Or run it on demand from Actions tab →
 **Check feeds** → **Run workflow**. Each iteration writes
-`docs/feed_check.md`, `docs/feed_check.json`, and
-`docs/index.html`, and pushes them back to the repo.
+`docs/feed_check.md`, `docs/feed_check.json`, and `docs/index.html`, plus
+`data/articles.jsonl`, and pushes them back to the repo.
+
+Three things the loop does that aren't obvious, all of which exist because
+the simpler version failed in production:
+
+- **The sleep is computed from iteration start** (`INTERVAL - elapsed`), not
+  a flat 45 min after the work. The flat version made the real cadence
+  `work + 45min` — measured 47m18s before extraction existed, and heading
+  past 54 min with it.
+- **A single run is capped by `timeout 20m`**, and the loop reserves 22 min
+  before starting another iteration. Without the reserve an iteration could
+  start at `END - 1s` and get killed mid-push by `timeout-minutes: 350`.
+- **Push rejections do not rebase.** `docs/` and `data/` are generated and
+  wholly rewritten each run, so there's no meaningful merge: the loop
+  stashes the generated tree, hard-resets onto origin, restores it, and
+  re-commits. Rebasing them produced real conflicts on
+  `data/articles.jsonl` (1.1 MB, re-sorted in full every run) and, worse,
+  left a mid-rebase tree that broke every later iteration's commit for the
+  rest of the job. Delivery is then verified by comparing `HEAD` against
+  `origin/<branch>` — the old code trusted `git push`'s exit code, which is
+  0 ("Everything up-to-date") even when the commit before it failed.
+
+**Staleness watchdog.** `.github/workflows/staleness-watchdog.yml` runs
+every 2h, reads `checked_at` out of `docs/feed_check.json`, and fails if
+it's older than 150 min. A failed Actions run emails the repo owner — that
+is the entire alerting mechanism. It exists because a dead loop had no
+signal at all: the job can be green, `docs/` keeps serving the last good
+build, and the only symptom is the site quietly reading "Updated Xh ago".
+Two chain deaths on 2026-08-13 went unnoticed for 3h57m and 2h40m.
 
 Two things tried and rejected before this, for the record:
 
@@ -181,16 +232,28 @@ Feeds marked DEAD or STALE get deleted from `feeds.yaml` or their URL fixed.
 
 ## Deck size
 
-68 feeds yield roughly 3,300 articles a run, ~3,150 after merging. No fixed
-cap on the deck (`DECK_LIMIT` existed, got removed — see the audit note
-below); every deduped, image-having article shows. Cards with no lead image
-*are* excluded (see "No-image filter" below) — currently around a third of
-the deduped set, leaving roughly 2,000+ cards in the actual deck. That's a
-real jump in payload size from the old 400-card cap: `index.html` grows to
-roughly 1.5+ MB raw / ~450 KB+ gzipped (Pages serves gzipped) from the old
-~300 KB / ~90 KB — still loads fine, no pagination needed yet, but if the
-feed count keeps growing this is the number to watch. `feed_check.json`
-still has the full un-deduped set regardless of what made the deck.
+**78 feeds** (`feeds.yaml`). Measured on the last full run: 3,077 articles →
+2,942 after merging 135 cross-agency duplicates → **1,919 cards** after
+dropping 1,023 with no lead image, from 51 contributing feeds. (That run was
+at 68 feeds; the +10 since — Health, Africa/Oceania/Middle East, two
+Entertainment — land in the next one.)
+
+No fixed cap on the deck (`DECK_LIMIT` existed, got removed — see the audit
+note below); every deduped, image-having article shows. Cards with no lead
+image *are* excluded (see "No-image filter" below) — about a third of the
+deduped set.
+
+Payload, measured, not estimated: `docs/index.html` is **2.0 MB raw /
+581 KB gzipped** (Pages serves gzipped). Up from ~300 KB / ~90 KB under the
+old 400-card cap. Still loads fine and needs no pagination yet, but this is
+the number to watch as feeds grow — and it's a network-first PWA fetch, so
+it's ~581 KB over the wire per visit.
+
+`docs/feed_check.json` is **feed-health rows only** — `name`, `url`, `ok`,
+`note`, `entries`, `age_hours`, `median_chars`, `dated`, `verdict` per feed,
+plus `checked_at`. It contains no article data at all. (This file previously
+claimed it held "the full un-deduped set"; it never has. The full deduped
+set, minus the image filter, *is* what's in `index.html`.)
 
 ## No-image filter
 
@@ -205,28 +268,53 @@ real, contested preference and not just leftover code.
 
 ## Dedupe performance
 
-`dedupe_articles` compares each article's title against every existing
-cluster. The straightforward version of this is O(n²) and was, measured,
-the pipeline's dominant cost at real scale (~14 min projected at ~3,000
-articles) — the reason the "45-min" loop was actually landing every ~53 min.
-Fixed with a token index (only compare against clusters sharing a
-significant word) plus `SequenceMatcher`'s free `quick_ratio()`/
-`real_quick_ratio()` upper bounds before the real comparison — both exact
-filters, not heuristics, verified byte-identical to the original algorithm
-by `tests/test_pipeline.py::test_dedupe_matches_naive_reference` across 40
-seed/size combinations. ~6x measured speedup at realistic vocabulary
-(87.8s → 13.8s at 1,000 articles) — better, not fully linear; worth another
-pass if the feed count grows a lot further. The original algorithm is kept
-verbatim as `_dedupe_articles_naive` purely as that test's reference —
-never called from the pipeline.
+`dedupe_articles` compares each article's title against existing clusters.
+The straightforward version is O(n²) and was, measured, the pipeline's
+dominant cost at real scale — the reason the "45-min" loop was actually
+landing every ~53 min. Two narrowings sit in front of the comparison, and
+**they are not equally trustworthy**:
+
+- `SequenceMatcher`'s `real_quick_ratio()`/`quick_ratio()` are genuinely
+  *exact* upper bounds on `ratio()`. A pair they reject provably could not
+  have met the threshold.
+- The **token index is a high-recall heuristic, not an exact filter.** This
+  file previously claimed both were exact. That was wrong, and two real
+  counterexamples proved it: a title with no word longer than 3 chars landed
+  in *no* index bucket and was unreachable from every later article, and
+  pairs whose only long words differed by an inflection (`rupee`/`rupees`)
+  shared no key despite scoring 0.94. Both merged under the reference
+  implementation and split under the fast path. Keys are now
+  prefix-truncated with a ≥3-char floor plus an all-clusters sentinel
+  bucket, which closes both — but a heuristic is still a heuristic. The
+  chosen failure direction is under-merging (a leftover duplicate card),
+  the same direction `DEDUPE_TITLE_THRESHOLD` is tuned for.
+
+Measured on 1,919 **real** headlines: fast and reference paths produce
+identical output, 20.4 s vs ~10 min — **29× faster**, ~57 s projected at
+3,400 articles. (An earlier "6× / 13.8 s" figure here came from a synthetic
+vocabulary of `word0…word399`, where every word shares a 4-char prefix — a
+pathological input that collapses the index into one bucket. Benchmark
+against real titles, not generated ones.)
+
+Equivalence is asserted by `test_dedupe_matches_naive_reference` (fuzz),
+`test_dedupe_matches_naive_reference_adversarial` (250 cases built from
+short/inflected words — the shape that actually broke it), and
+`test_dedupe_known_index_counterexamples` (the two cases above). The
+original algorithm is kept verbatim as `_dedupe_articles_naive` purely as
+those tests' reference — never called from the pipeline.
 
 ## Tests
 
 `tests/test_pipeline.py` (`pip install -r requirements-dev.txt`, then
-`pytest tests/`) — pure-function unit tests, no network, one test per bullet
-in "Audit notes" below, plus the dedupe equivalence fuzz test above. This is
-the only automated testing in the project; everything else in "QA
-performed" was manual and one-time.
+`pytest tests/`) — **41 tests**, pure functions only, no network. Covers the
+dedupe equivalence fuzz + counterexamples above, the persistence/extraction
+layer (fairness across sources, budget, retry give-up, the non-http
+rejection, the `MAX_BYTES` cap, legacy row shapes), and many — **not all** —
+of the "Audit notes" bullets below. Known untested: `fetch()`/`check()`/
+`verdict()` (the whole HTTP layer, though it's straightforwardly fakeable),
+the `source_bias` → "Not rated" fallback, and everything frontend. This is
+the only automated testing in the project; everything in "QA performed" was
+manual and one-time.
 
 ## Topics
 
@@ -239,19 +327,18 @@ government bailout of an airline, say) gets whichever topic's keywords hit
 more, not both. Add/adjust keywords there directly; there's no config file
 for it yet.
 
-## Judgments
+## Judgments (never built — design only)
 
-Every cluster in a digest carries an id like `C-0142`. Verdicts get appended
-to `judgments.md` one line at a time:
+The original plan: every cluster in a digest carries an id like `C-0142`,
+and verdicts get appended to a `judgments.md` one line at a time
+(`C-0142 split`, `C-0155 good`, …) as the manual grading step that would
+make this an experiment rather than a hobby project.
 
-```
-C-0142 split
-C-0155 good
-C-0161 merged  Kerala floods + Assam floods same cluster
-```
-
-This is the only manual step in the whole two weeks, and it's the one that
-makes it an experiment rather than a hobby project.
+**None of this exists.** There is no `judgments.md`, no cluster ids, and no
+digest to grade — it belongs to the embed/cluster/summarise stages that were
+never started (see "Stages"). Kept as a record of the intended design, not
+as a description of anything in the repo. This section previously read as
+present-tense fact.
 
 ## Audit notes (things already fixed — don't reintroduce them)
 
@@ -398,8 +485,70 @@ makes it an experiment rather than a hobby project.
   links were all updated in the same pass — grep for
   `devshrawin/newsdigest` or `devshrawin.github.io/newsdigest` before
   trusting any old link found elsewhere (chat history, notes, bookmarks).
+- The embedded JSON payload escapes **every** `<` as `<`, not just
+  `</`. `<!--` followed later by `<script` inside a `<script>` element puts
+  the HTML tokenizer into script-data-double-escaped state, where
+  `</script>` stops closing the element — so the JSON block swallows its own
+  closing tag *and* the entire application script after it, and the deck
+  renders blank with no console error. One feed headline shaped like
+  `Hackers post <!--<script>x</script>--> on site` was enough. Not XSS (the
+  element is `type="application/json"`), but a total availability kill from
+  remote content.
+- Hidden overlays (`.scrim`, `.onb-scrim`, `.reader-scrim`, the closed
+  `.drawer`) set `visibility: hidden`, not just `opacity: 0` /
+  `pointer-events: none`. Opacity alone leaves every descendant
+  keyboard-focusable: tabbing past the deck landed on the *invisible*
+  onboarding form with no focus ring on screen, and Enter there rewrote the
+  user's saved interests and re-rendered the deck with no visible cause.
+  `visibility` is in the transition so the fade-out still works.
+- The document-level keydown handler early-returns when any overlay is open.
+  Without it, ArrowRight while the inline reader was open flew the card
+  *behind* the overlay off-screen and advanced the index — so Save/Share
+  then acted on a different story than the one being read, and `s` saved an
+  article the user couldn't see.
+- Peeking stacked cards get `tabIndex = -1` on their `a`/`button`
+  descendants, not just `aria-hidden` on the card. Otherwise focus lands on
+  controls screen readers report as nothing, and activating a hidden card's
+  "Read here" opens the reader for an article the deck isn't showing.
+- The inline reader panel uses `var(--glass)`. It originally used
+  `var(--card)`, which **is defined in no palette block** — so the
+  background fell back to `transparent` and article text rendered directly
+  over the card deck behind it. If you add a `--card` token later, check
+  these two rules first.
+- `save_articles_store()` writes to a temp file and `os.replace()`s it. The
+  workflow runs `git add data/` even when `check_feeds.py` exited non-zero,
+  so a truncating write that died partway (disk full) would be committed as
+  authoritative — and `load_articles_store()` silently skips the
+  half-written final line, making the loss invisible.
+- `apply_persistence()` reads `row.get("first_seen") or now_iso`, never
+  `row["first_seen"]`. `load_articles_store()` validates only `id`, so one
+  row missing that key used to raise `KeyError` on **every** subsequent
+  run — and with no `set -e` in the workflow, that's a *green* job
+  publishing a stale page ~32×/day. Relatedly, the retention prune keeps
+  rows whose timestamp is missing or unparseable instead of deleting them:
+  the old `except: return False` treated a naive timestamp's `TypeError` as
+  "prune it", silently discarding rows *and* their multi-KB cached
+  extraction on any format drift.
+- `FUTURE`-verdict entries are clamped to `now` at ingest in `check()`.
+  `SKEW_HOURS` previously only *labelled* the feed in the report — nothing
+  clamped the value, so a publisher stamping entries days ahead sorted
+  permanently to the top of the deck and its bogus timestamps also broke
+  `DEDUPE_WINDOW_HOURS` gap checks, silently preventing real merges. The
+  unclamped value is still used for `age_hours`, so the FUTURE diagnostic
+  still fires.
+- `sourced` counts cluster representatives **plus** `also_from`
+  contributors. Counting only representatives undercounted structurally,
+  since `feeds.yaml` is deliberately curated for cross-agency overlap.
 
 ## QA performed
+
+**Dated records, not current inventory.** Everything below was performed
+against a **32-feed** version of this repo (`feeds.yaml` now has 78), so its
+article counts, feed tallies, and "all N feeds" statements describe the repo
+as it was at the time — they are not claims about today. The schema
+line in particular QAs code (`pipeline/db.py` / `schema.sql`) that has since
+been confirmed to have zero callers. Kept because the *methods* are worth
+knowing were run; re-run them before trusting any specific number here.
 
 End-to-end, not just unit-level:
 
