@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-08-21T14:12:19.454829+00:00",
+  "checked_at": "2026-08-21T14:57:09.694081+00:00",
   "feeds": [
     {
       "name": "The Hindu",
@@ -7,8 +7,8 @@
       "ok": true,
       "note": "",
       "entries": 60,
-      "age_hours": 0.1,
-      "median_chars": 143,
+      "age_hours": 0.0,
+      "median_chars": 110,
       "dated": 60,
       "verdict": "OK"
     },
@@ -19,7 +19,7 @@
       "note": "",
       "entries": 60,
       "age_hours": 0.1,
-      "median_chars": 123,
+      "median_chars": 0,
       "dated": 60,
       "verdict": "OK"
     },
@@ -40,7 +40,7 @@
       "ok": true,
       "note": "",
       "entries": 100,
-      "age_hours": 0.1,
+      "age_hours": 0.5,
       "median_chars": 142,
       "dated": 100,
       "verdict": "OK"
@@ -51,8 +51,8 @@
       "ok": true,
       "note": "",
       "entries": 47,
-      "age_hours": 0.5,
-      "median_chars": 390,
+      "age_hours": 0.3,
+      "median_chars": 394,
       "dated": 47,
       "verdict": "OK"
     },
@@ -62,7 +62,7 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 0.0,
+      "age_hours": 0.8,
       "median_chars": 150,
       "dated": 20,
       "verdict": "OK"
@@ -84,8 +84,8 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 0.0,
-      "median_chars": 80,
+      "age_hours": 0.5,
+      "median_chars": 83,
       "dated": 20,
       "verdict": "OK"
     },
@@ -94,10 +94,10 @@
       "url": "https://www.freepressjournal.in/stories.rss",
       "ok": true,
       "note": "",
-      "entries": 150,
-      "age_hours": 0.4,
-      "median_chars": 2447,
-      "dated": 150,
+      "entries": 148,
+      "age_hours": 0.3,
+      "median_chars": 2568,
+      "dated": 148,
       "verdict": "OK"
     },
     {
@@ -105,10 +105,10 @@
       "url": "https://www.deccanchronicle.com/feeds.xml",
       "ok": true,
       "note": "",
-      "entries": 577,
-      "age_hours": 0.0,
+      "entries": 575,
+      "age_hours": 0.1,
       "median_chars": 140,
-      "dated": 577,
+      "dated": 575,
       "verdict": "OK"
     },
     {
@@ -117,7 +117,7 @@
       "ok": true,
       "note": "",
       "entries": 50,
-      "age_hours": 1.6,
+      "age_hours": 0.5,
       "median_chars": 2151,
       "dated": 50,
       "verdict": "OK"
@@ -128,7 +128,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 1.6,
+      "age_hours": 2.3,
       "median_chars": 1406,
       "dated": 10,
       "verdict": "OK"
@@ -139,8 +139,8 @@
       "ok": true,
       "note": "",
       "entries": 51,
-      "age_hours": 0.4,
-      "median_chars": 282,
+      "age_hours": 0.2,
+      "median_chars": 283,
       "dated": 51,
       "verdict": "OK"
     },
@@ -150,8 +150,8 @@
       "ok": true,
       "note": "",
       "entries": 35,
-      "age_hours": 0.5,
-      "median_chars": 213,
+      "age_hours": 0.1,
+      "median_chars": 218,
       "dated": 35,
       "verdict": "OK"
     },
@@ -172,7 +172,7 @@
       "ok": true,
       "note": "",
       "entries": 15,
-      "age_hours": 20406.0,
+      "age_hours": 20406.7,
       "median_chars": 161,
       "dated": 15,
       "verdict": "STALE"
@@ -183,7 +183,7 @@
       "ok": true,
       "note": "",
       "entries": 30,
-      "age_hours": 0.0,
+      "age_hours": 0.1,
       "median_chars": 134,
       "dated": 30,
       "verdict": "OK"
@@ -194,8 +194,8 @@
       "ok": true,
       "note": "",
       "entries": 25,
-      "age_hours": 1.1,
-      "median_chars": 146,
+      "age_hours": 1.2,
+      "median_chars": 142,
       "dated": 25,
       "verdict": "OK"
     },
@@ -205,7 +205,7 @@
       "ok": true,
       "note": "redirected -> https://feeds.businessinsider.com/custom/all",
       "entries": 20,
-      "age_hours": 0.2,
+      "age_hours": 0.1,
       "median_chars": 5147,
       "dated": 20,
       "verdict": "OK"
@@ -227,7 +227,7 @@
       "ok": true,
       "note": "",
       "entries": 100,
-      "age_hours": 2.0,
+      "age_hours": 2.8,
       "median_chars": 470,
       "dated": 100,
       "verdict": "OK"
@@ -238,8 +238,8 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 0.4,
-      "median_chars": 339,
+      "age_hours": 0.2,
+      "median_chars": 320,
       "dated": 10,
       "verdict": "OK"
     },
@@ -249,8 +249,8 @@
       "ok": true,
       "note": "",
       "entries": 24,
-      "age_hours": 1.3,
-      "median_chars": 3768,
+      "age_hours": 1.4,
+      "median_chars": 3767,
       "dated": 24,
       "verdict": "OK"
     },
@@ -260,7 +260,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 2.8,
+      "age_hours": 3.6,
       "median_chars": 9190,
       "dated": 10,
       "verdict": "OK"
@@ -282,8 +282,8 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 0.5,
-      "median_chars": 685,
+      "age_hours": 0.2,
+      "median_chars": 696,
       "dated": 10,
       "verdict": "OK"
     },
@@ -293,7 +293,7 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 3.1,
+      "age_hours": 3.9,
       "median_chars": 1132,
       "dated": 20,
       "verdict": "OK"
@@ -304,7 +304,7 @@
       "ok": true,
       "note": "",
       "entries": 50,
-      "age_hours": 2.6,
+      "age_hours": 3.4,
       "median_chars": 133,
       "dated": 50,
       "verdict": "OK"
@@ -315,7 +315,7 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 0.2,
+      "age_hours": 0.9,
       "median_chars": 83,
       "dated": 20,
       "verdict": "OK"
@@ -326,8 +326,8 @@
       "ok": true,
       "note": "",
       "entries": 100,
-      "age_hours": 0.5,
-      "median_chars": 104,
+      "age_hours": 0.3,
+      "median_chars": 103,
       "dated": 100,
       "verdict": "OK"
     },
@@ -358,10 +358,10 @@
       "url": "https://feeds.bbci.co.uk/sport/rss.xml",
       "ok": true,
       "note": "",
-      "entries": 79,
-      "age_hours": 0.1,
+      "entries": 77,
+      "age_hours": 0.6,
       "median_chars": 140,
-      "dated": 79,
+      "dated": 77,
       "verdict": "OK"
     },
     {
@@ -370,8 +370,8 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": -0.8,
-      "median_chars": 127,
+      "age_hours": -0.6,
+      "median_chars": 125,
       "dated": 20,
       "verdict": "OK"
     },
@@ -382,7 +382,7 @@
       "note": "",
       "entries": 10,
       "age_hours": 0.1,
-      "median_chars": 2558,
+      "median_chars": 2101,
       "dated": 10,
       "verdict": "OK"
     },
@@ -392,8 +392,8 @@
       "ok": true,
       "note": "",
       "entries": 50,
-      "age_hours": 1.1,
-      "median_chars": 2401,
+      "age_hours": 1.9,
+      "median_chars": 2422,
       "dated": 50,
       "verdict": "OK"
     },
@@ -403,8 +403,8 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 0.2,
-      "median_chars": 352,
+      "age_hours": 0.5,
+      "median_chars": 351,
       "dated": 10,
       "verdict": "OK"
     },
@@ -414,8 +414,8 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 0.4,
-      "median_chars": 150,
+      "age_hours": 0.1,
+      "median_chars": 193,
       "dated": 10,
       "verdict": "OK"
     },
@@ -425,8 +425,8 @@
       "ok": true,
       "note": "",
       "entries": 12,
-      "age_hours": 0.1,
-      "median_chars": 344,
+      "age_hours": 0.7,
+      "median_chars": 350,
       "dated": 12,
       "verdict": "OK"
     },
@@ -437,7 +437,7 @@
       "note": "",
       "entries": 10,
       "age_hours": 0.1,
-      "median_chars": 105,
+      "median_chars": 112,
       "dated": 10,
       "verdict": "OK"
     },
@@ -447,7 +447,7 @@
       "ok": true,
       "note": "",
       "entries": 60,
-      "age_hours": 0.3,
+      "age_hours": 1.0,
       "median_chars": 180,
       "dated": 60,
       "verdict": "OK"
@@ -458,7 +458,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 5.2,
+      "age_hours": 5.9,
       "median_chars": 216,
       "dated": 10,
       "verdict": "OK"
@@ -469,7 +469,7 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 0.3,
+      "age_hours": 1.0,
       "median_chars": 701,
       "dated": 20,
       "verdict": "OK"
@@ -480,7 +480,7 @@
       "ok": true,
       "note": "",
       "entries": 25,
-      "age_hours": 4244.0,
+      "age_hours": 4244.8,
       "median_chars": 3249,
       "dated": 25,
       "verdict": "STALE"
@@ -491,7 +491,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 74.8,
+      "age_hours": 75.6,
       "median_chars": 2394,
       "dated": 10,
       "verdict": "STALE"
@@ -502,7 +502,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 6.0,
+      "age_hours": 6.7,
       "median_chars": 3175,
       "dated": 10,
       "verdict": "OK"
@@ -513,7 +513,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 46.7,
+      "age_hours": 47.5,
       "median_chars": 3932,
       "dated": 10,
       "verdict": "OK"
@@ -524,7 +524,7 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 1.2,
+      "age_hours": 1.9,
       "median_chars": 120,
       "dated": 20,
       "verdict": "OK"
@@ -534,10 +534,10 @@
       "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
       "ok": true,
       "note": "",
-      "entries": 27,
-      "age_hours": 1.0,
-      "median_chars": 103,
-      "dated": 27,
+      "entries": 30,
+      "age_hours": 0.3,
+      "median_chars": 102,
+      "dated": 30,
       "verdict": "OK"
     },
     {
@@ -546,7 +546,7 @@
       "ok": true,
       "note": "",
       "entries": 17,
-      "age_hours": 3.4,
+      "age_hours": 4.1,
       "median_chars": 102,
       "dated": 17,
       "verdict": "OK"
@@ -557,7 +557,7 @@
       "ok": true,
       "note": "",
       "entries": 25,
-      "age_hours": 0.4,
+      "age_hours": 0.3,
       "median_chars": 109,
       "dated": 25,
       "verdict": "OK"
@@ -568,7 +568,7 @@
       "ok": true,
       "note": "",
       "entries": 140,
-      "age_hours": 0.2,
+      "age_hours": 0.9,
       "median_chars": 198,
       "dated": 140,
       "verdict": "OK"
@@ -579,7 +579,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 2.5,
+      "age_hours": 3.2,
       "median_chars": 197,
       "dated": 10,
       "verdict": "OK"
@@ -590,7 +590,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 2.5,
+      "age_hours": 3.2,
       "median_chars": 212,
       "dated": 10,
       "verdict": "OK"
@@ -601,8 +601,8 @@
       "ok": true,
       "note": "",
       "entries": 45,
-      "age_hours": 0.3,
-      "median_chars": 577,
+      "age_hours": 0.1,
+      "median_chars": 588,
       "dated": 45,
       "verdict": "OK"
     },
@@ -612,7 +612,7 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 37.3,
+      "age_hours": 38.0,
       "median_chars": 696,
       "dated": 20,
       "verdict": "OK"
@@ -623,7 +623,7 @@
       "ok": true,
       "note": "",
       "entries": 56,
-      "age_hours": 0.2,
+      "age_hours": 0.1,
       "median_chars": 160,
       "dated": 56,
       "verdict": "OK"
@@ -635,7 +635,7 @@
       "note": "",
       "entries": 26,
       "age_hours": 0.1,
-      "median_chars": 148,
+      "median_chars": 151,
       "dated": 26,
       "verdict": "OK"
     },
@@ -645,7 +645,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 4.1,
+      "age_hours": 4.8,
       "median_chars": 159,
       "dated": 10,
       "verdict": "OK"
@@ -656,7 +656,7 @@
       "ok": true,
       "note": "",
       "entries": 4,
-      "age_hours": 4.2,
+      "age_hours": 4.9,
       "median_chars": 164,
       "dated": 4,
       "verdict": "OK"
@@ -667,8 +667,8 @@
       "ok": true,
       "note": "",
       "entries": 24,
-      "age_hours": 1.0,
-      "median_chars": 399,
+      "age_hours": 0.3,
+      "median_chars": 431,
       "dated": 24,
       "verdict": "OK"
     },
@@ -678,8 +678,8 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 2.0,
-      "median_chars": 140,
+      "age_hours": 1.4,
+      "median_chars": 131,
       "dated": 10,
       "verdict": "OK"
     },
@@ -689,8 +689,8 @@
       "ok": true,
       "note": "redirected -> https://abcnews.com/abcnews/internationalheadlines",
       "entries": 25,
-      "age_hours": 1.7,
-      "median_chars": 148,
+      "age_hours": 2.4,
+      "median_chars": 151,
       "dated": 25,
       "verdict": "OK"
     },
@@ -700,7 +700,7 @@
       "ok": true,
       "note": "browser UA needed; redirected -> https://www.cbc.ca/webfeed/rss/rss-topstories",
       "entries": 20,
-      "age_hours": 0.2,
+      "age_hours": 0.9,
       "median_chars": 215,
       "dated": 20,
       "verdict": "OK"
@@ -711,7 +711,7 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 0.5,
+      "age_hours": 0.3,
       "median_chars": 0,
       "dated": 20,
       "verdict": "OK"
@@ -722,7 +722,7 @@
       "ok": true,
       "note": "",
       "entries": 50,
-      "age_hours": 0.2,
+      "age_hours": 0.1,
       "median_chars": 500,
       "dated": 50,
       "verdict": "OK"
@@ -732,22 +732,22 @@
       "url": "https://www.independent.co.uk/news/world/rss",
       "ok": true,
       "note": "",
-      "entries": 94,
+      "entries": 90,
       "age_hours": 0.2,
-      "median_chars": 117,
-      "dated": 94,
+      "median_chars": 116,
+      "dated": 90,
       "verdict": "OK"
     },
     {
       "name": "Euronews English",
       "url": "https://www.euronews.com/rss",
-      "ok": true,
-      "note": "",
-      "entries": 50,
-      "age_hours": 0.4,
-      "median_chars": 178,
-      "dated": 50,
-      "verdict": "OK"
+      "ok": false,
+      "note": "0 entries (not a feed? moved?)",
+      "entries": 0,
+      "age_hours": null,
+      "median_chars": 0,
+      "dated": 0,
+      "verdict": "DEAD"
     },
     {
       "name": "Japan Times",
@@ -755,7 +755,7 @@
       "ok": true,
       "note": "",
       "entries": 30,
-      "age_hours": 1.5,
+      "age_hours": 2.2,
       "median_chars": 137,
       "dated": 30,
       "verdict": "OK"
@@ -766,7 +766,7 @@
       "ok": true,
       "note": "",
       "entries": 50,
-      "age_hours": 0.6,
+      "age_hours": 0.7,
       "median_chars": 106,
       "dated": 50,
       "verdict": "OK"
@@ -777,7 +777,7 @@
       "ok": true,
       "note": "",
       "entries": 10,
-      "age_hours": 3.2,
+      "age_hours": 3.9,
       "median_chars": 9174,
       "dated": 10,
       "verdict": "OK"
@@ -788,8 +788,8 @@
       "ok": true,
       "note": "",
       "entries": 25,
-      "age_hours": 1.2,
-      "median_chars": 8965,
+      "age_hours": 0.3,
+      "median_chars": 8287,
       "dated": 25,
       "verdict": "OK"
     },
@@ -799,7 +799,7 @@
       "ok": true,
       "note": "",
       "entries": 100,
-      "age_hours": 2.7,
+      "age_hours": 3.4,
       "median_chars": 3414,
       "dated": 100,
       "verdict": "OK"
@@ -810,8 +810,8 @@
       "ok": true,
       "note": "redirected -> https://thehill.com/feed/?feed=partnerfeed-news-feed&format=rss",
       "entries": 100,
-      "age_hours": 0.1,
-      "median_chars": 345,
+      "age_hours": 0.4,
+      "median_chars": 344,
       "dated": 100,
       "verdict": "OK"
     },
@@ -821,8 +821,8 @@
       "ok": true,
       "note": "",
       "entries": 33,
-      "age_hours": 1.6,
-      "median_chars": 225,
+      "age_hours": 0.1,
+      "median_chars": 223,
       "dated": 33,
       "verdict": "OK"
     },
@@ -832,7 +832,7 @@
       "ok": true,
       "note": "",
       "entries": 46,
-      "age_hours": 0.4,
+      "age_hours": 0.3,
       "median_chars": 103,
       "dated": 46,
       "verdict": "OK"
@@ -843,7 +843,7 @@
       "ok": true,
       "note": "",
       "entries": 25,
-      "age_hours": 0.6,
+      "age_hours": 1.3,
       "median_chars": 164,
       "dated": 25,
       "verdict": "OK"
@@ -854,8 +854,8 @@
       "ok": true,
       "note": "",
       "entries": 20,
-      "age_hours": 0.3,
-      "median_chars": 1156,
+      "age_hours": 0.7,
+      "median_chars": 1266,
       "dated": 20,
       "verdict": "OK"
     }
