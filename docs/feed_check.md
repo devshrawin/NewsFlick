@@ -1,102 +1,102 @@
 # Feed check
 
-Run: 2026-09-15 13:12 UTC
+Run: 2026-09-15 13:57 UTC
 
 - **72 / 78 feeds usable**
-- 3152 items visible right now across live feeds
+- 3163 items visible right now across live feeds
 - 51 of 72 live feeds are teaser-only (<400 chars) -> need article extraction
-- 3192 articles from 74 feeds (includes STALE/FUTURE/NO DATES, not just the 72 graded OK) -> 3075 after merging 117 cross-agency duplicates -> 2101 after dropping 974 with no lead image
-- 65 feeds contributed to the 2101-card deck
+- 3203 articles from 74 feeds (includes STALE/FUTURE/NO DATES, not just the 72 graded OK) -> 3083 after merging 120 cross-agency duplicates -> 2094 after dropping 989 with no lead image
+- 64 feeds contributed to the 2094-card deck
 
 Legend: OK / FUTURE (publisher clock wrong) / STALE (>48h) / NO DATES / DEAD
 
 ## OK (72)
 
-**ABC News (US)** — 25 items, newest 2.4h ago, median body 117 chars, teaser, redirected -> https://abcnews.com/abcnews/internationalheadlines
+**ABC News (US)** — 25 items, newest 0.5h ago, median body 134 chars, teaser, redirected -> https://abcnews.com/abcnews/internationalheadlines
 `https://abcnews.go.com/abcnews/internationalheadlines`
 
-**ABC News Australia** — 25 items, newest 0.6h ago, median body 169 chars, teaser
+**ABC News Australia** — 25 items, newest 0.7h ago, median body 169 chars, teaser
 `https://www.abc.net.au/news/feed/51120/rss.xml`
 
-**Al Jazeera** — 25 items, newest 0.5h ago, median body 109 chars, teaser
+**Al Jazeera** — 25 items, newest 0.2h ago, median body 109 chars, teaser
 `https://www.aljazeera.com/xml/rss/all.xml`
 
-**AllAfrica** — 32 items, newest 1.9h ago, median body 221 chars, teaser
+**AllAfrica** — 32 items, newest 2.6h ago, median body 221 chars, teaser
 `https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf`
 
-**Alt News** — 10 items, newest 10.6h ago, median body 10700 chars, FULL TEXT
+**Alt News** — 10 items, newest 11.3h ago, median body 10700 chars, FULL TEXT
 `https://www.altnews.in/feed/`
 
-**Ars Technica** — 20 items, newest 0.6h ago, median body 1160 chars, FULL TEXT
+**Ars Technica** — 20 items, newest 1.3h ago, median body 1160 chars, FULL TEXT
 `https://feeds.arstechnica.com/arstechnica/index`
 
-**Axios** — 100 items, newest 0.3h ago, median body 3483 chars, FULL TEXT
+**Axios** — 100 items, newest 0.3h ago, median body 3486 chars, FULL TEXT
 `https://api.axios.com/feed/`
 
-**BBC Africa** — 30 items, newest 0.9h ago, median body 115 chars, teaser
+**BBC Africa** — 30 items, newest 1.7h ago, median body 115 chars, teaser
 `https://feeds.bbci.co.uk/news/world/africa/rss.xml`
 
-**BBC Asia** — 17 items, newest 6.5h ago, median body 119 chars, teaser
+**BBC Asia** — 17 items, newest 7.2h ago, median body 119 chars, teaser
 `https://feeds.bbci.co.uk/news/world/asia/rss.xml`
 
-**BBC Sport** — 76 items, newest 0.5h ago, median body 146 chars, teaser
+**BBC Sport** — 76 items, newest 0.2h ago, median body 143 chars, teaser
 `https://feeds.bbci.co.uk/sport/rss.xml`
 
-**BBC World** — 29 items, newest 0.6h ago, median body 115 chars, teaser
+**BBC World** — 32 items, newest 0.2h ago, median body 115 chars, teaser
 `https://feeds.bbci.co.uk/news/world/rss.xml`
 
-**Beebom** — 10 items, newest 0.5h ago, median body 357 chars, teaser
+**Beebom** — 10 items, newest 0.5h ago, median body 335 chars, teaser
 `https://beebom.com/feed/`
 
-**Bollywood Hungama** — 10 items, newest 0.2h ago, median body 2716 chars, FULL TEXT
+**Bollywood Hungama** — 10 items, newest 0.5h ago, median body 2646 chars, FULL TEXT
 `https://www.bollywoodhungama.com/feed/`
 
-**Business Insider** — 20 items, newest 0.1h ago, median body 5097 chars, FULL TEXT, redirected -> https://feeds.businessinsider.com/custom/all
+**Business Insider** — 20 items, newest 0.1h ago, median body 4712 chars, FULL TEXT, redirected -> https://feeds.businessinsider.com/custom/all
 `https://www.businessinsider.com/rss`
 
-**CBC News** — 20 items, newest 1.2h ago, median body 150 chars, teaser, browser UA needed; redirected -> https://www.cbc.ca/webfeed/rss/rss-topstories
+**CBC News** — 19 items, newest 0.6h ago, median body 147 chars, teaser, browser UA needed; redirected -> https://www.cbc.ca/webfeed/rss/rss-topstories
 `https://www.cbc.ca/cmlink/rss-topstories`
 
-**CNBC** — 30 items, newest 0.1h ago, median body 137 chars, teaser
+**CNBC** — 30 items, newest 0.0h ago, median body 138 chars, teaser
 `https://www.cnbc.com/id/100003114/device/rss/rss.html`
 
-**Channel News Asia** — 20 items, newest 0.1h ago, median body 0 chars, teaser
+**Channel News Asia** — 20 items, newest 0.5h ago, median body 37 chars, teaser
 `https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml`
 
 **Deadline** — 12 items, newest 0.2h ago, median body 347 chars, teaser
 `https://deadline.com/feed/`
 
-**Deccan Chronicle** — 391 items, newest 0.1h ago, median body 132 chars, teaser
+**Deccan Chronicle** — 392 items, newest 0.0h ago, median body 132 chars, teaser
 `https://www.deccanchronicle.com/feeds.xml`
 
 **Deutsche Welle** — 140 items, newest 0.6h ago, median body 190 chars, teaser
 `https://rss.dw.com/rdf/rss-en-all`
 
-**ESPN Cricinfo** — 100 items, newest 1.3h ago, median body 102 chars, teaser, redirected -> https://www.cricinfo.com/rss/content/story/feeds/0.xml
+**ESPN Cricinfo** — 100 items, newest 0.1h ago, median body 102 chars, teaser, redirected -> https://www.cricinfo.com/rss/content/story/feeds/0.xml
 `https://www.espncricinfo.com/rss/content/story/feeds/0.xml`
 
-**Economic Times** — 51 items, newest 0.7h ago, median body 0 chars, teaser
+**Economic Times** — 51 items, newest 0.3h ago, median body 0 chars, teaser
 `https://economictimes.indiatimes.com/rssfeedstopstories.cms`
 
-**Engadget** — 20 items, newest 0.2h ago, median body 114 chars, teaser
+**Engadget** — 20 items, newest 0.4h ago, median body 110 chars, teaser
 `https://www.engadget.com/rss.xml`
 
-**Euronews English** — 50 items, newest 0.2h ago, median body 176 chars, teaser
+**Euronews English** — 50 items, newest 0.1h ago, median body 172 chars, teaser
 `https://www.euronews.com/rss`
 
-**Factly** — 10 items, newest 2.9h ago, median body 2253 chars, FULL TEXT
+**Factly** — 10 items, newest 3.6h ago, median body 2253 chars, FULL TEXT
 `https://factly.in/feed/`
 
-**Forbes** — 25 items, newest 0.6h ago, median body 129 chars, teaser
+**Forbes** — 25 items, newest 0.8h ago, median body 123 chars, teaser
 `https://www.forbes.com/business/feed/`
 
-**France 24 English** — 24 items, newest 5.2h ago, median body 350 chars, teaser
+**France 24 English** — 24 items, newest 5.9h ago, median body 350 chars, teaser
 `https://www.france24.com/en/rss`
 
-**Free Press Journal** — 113 items, newest 0.3h ago, median body 2361 chars, FULL TEXT
+**Free Press Journal** — 120 items, newest 0.6h ago, median body 2429 chars, FULL TEXT
 `https://www.freepressjournal.in/stories.rss`
 
-**Gadgets360** — 100 items, newest 1.6h ago, median body 482 chars, FULL TEXT
+**Gadgets360** — 100 items, newest 0.5h ago, median body 480 chars, FULL TEXT
 `https://feeds.feedburner.com/gadgets360-latest`
 
 **Greater Kashmir** — 50 items, newest 0.1h ago, median body 1573 chars, FULL TEXT
@@ -105,135 +105,135 @@ Legend: OK / FUTURE (publisher clock wrong) / STALE (>48h) / NO DATES / DEAD
 **Hindustan Times** — 100 items, newest 0.3h ago, median body 140 chars, teaser
 `https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml`
 
-**Hollywood Reporter** — 10 items, newest 0.2h ago, median body 135 chars, teaser
+**Hollywood Reporter** — 10 items, newest 0.4h ago, median body 132 chars, teaser
 `https://www.hollywoodreporter.com/feed/`
 
-**Inc42** — 24 items, newest 1.7h ago, median body 5089 chars, FULL TEXT
+**Inc42** — 24 items, newest 0.8h ago, median body 4605 chars, FULL TEXT
 `https://inc42.com/feed/`
 
-**India Today** — 20 items, newest 0.1h ago, median body 80 chars, teaser
+**India Today** — 20 items, newest 0.2h ago, median body 80 chars, teaser
 `https://www.indiatoday.in/rss/1206578`
 
-**Japan Times** — 30 items, newest 2.1h ago, median body 129 chars, teaser
+**Japan Times** — 30 items, newest 2.8h ago, median body 129 chars, teaser
 `https://www.japantimes.co.jp/feed/`
 
-**Kashmir Observer** — 10 items, newest 1.1h ago, median body 2926 chars, FULL TEXT
+**Kashmir Observer** — 10 items, newest 1.8h ago, median body 2926 chars, FULL TEXT
 `https://kashmirobserver.net/feed/`
 
-**Livemint** — 35 items, newest 0.5h ago, median body 228 chars, teaser
+**Livemint** — 35 items, newest 0.3h ago, median body 223 chars, teaser
 `https://www.livemint.com/rss/news`
 
-**Middle East Eye** — 20 items, newest 0.3h ago, median body 1248 chars, FULL TEXT
+**Middle East Eye** — 20 items, newest 0.2h ago, median body 1213 chars, FULL TEXT
 `https://www.middleeasteye.net/rss`
 
-**NDTV** — 20 items, newest 0.8h ago, median body 145 chars, teaser
+**NDTV** — 20 items, newest 1.5h ago, median body 145 chars, teaser
 `https://feeds.feedburner.com/ndtvnews-india-news`
 
-**NPR** — 10 items, newest 0.6h ago, median body 202 chars, teaser
+**NPR** — 10 items, newest 1.4h ago, median body 202 chars, teaser
 `https://feeds.npr.org/1001/rss.xml`
 
-**NPR Health** — 10 items, newest 2.7h ago, median body 232 chars, teaser
+**NPR Health** — 10 items, newest 3.5h ago, median body 232 chars, teaser
 `https://feeds.npr.org/1128/rss.xml`
 
-**NPR World** — 10 items, newest 1.6h ago, median body 208 chars, teaser
+**NPR World** — 10 items, newest 2.3h ago, median body 208 chars, teaser
 `https://feeds.npr.org/1004/rss.xml`
 
-**New York Times Home** — 28 items, newest 0.7h ago, median body 143 chars, teaser
+**New York Times Home** — 30 items, newest 0.2h ago, median body 150 chars, teaser
 `https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml`
 
-**New York Times World** — 55 items, newest 0.7h ago, median body 158 chars, teaser
+**New York Times World** — 57 items, newest 0.2h ago, median body 158 chars, teaser
 `https://rss.nytimes.com/services/xml/rss/nyt/World.xml`
 
-**News18** — 200 items, newest 0.4h ago, median body 167 chars, teaser
+**News18** — 200 items, newest 0.0h ago, median body 167 chars, teaser
 `https://www.news18.com/commonfeeds/v1/eng/rss/india.xml`
 
-**Pinkvilla** — 50 items, newest 3.6h ago, median body 2495 chars, FULL TEXT
+**Pinkvilla** — 50 items, newest 4.3h ago, median body 2495 chars, FULL TEXT
 `https://www.pinkvilla.com/rss.xml`
 
-**Rediff News** — 51 items, newest 0.4h ago, median body 358 chars, teaser
+**Rediff News** — 51 items, newest 0.4h ago, median body 357 chars, teaser
 `https://www.rediff.com/rss/newsrss.xml`
 
-**Rolling Stone** — 10 items, newest 0.2h ago, median body 139 chars, teaser
+**Rolling Stone** — 10 items, newest 0.9h ago, median body 139 chars, teaser
 `https://www.rollingstone.com/feed/`
 
-**STAT News** — 20 items, newest 0.1h ago, median body 653 chars, FULL TEXT
+**STAT News** — 20 items, newest 0.1h ago, median body 703 chars, FULL TEXT
 `https://www.statnews.com/feed/`
 
-**Sky News** — 8 items, newest 4.0h ago, median body 138 chars, teaser
+**Sky News** — 9 items, newest 1.9h ago, median body 125 chars, teaser
 `https://feeds.skynews.com/feeds/rss/home.xml`
 
-**Sky Sports** — 20 items, newest -0.1h ago, median body 122 chars, teaser
+**Sky Sports** — 20 items, newest -0.1h ago, median body 115 chars, teaser
 `https://www.skysports.com/rss/12040`
 
-**Snopes** — 20 items, newest 0.2h ago, median body 118 chars, teaser
+**Snopes** — 20 items, newest 0.9h ago, median body 118 chars, teaser
 `https://www.snopes.com/feed/`
 
-**South China Morning Post** — 50 items, newest 0.2h ago, median body 501 chars, FULL TEXT
+**South China Morning Post** — 50 items, newest 0.6h ago, median body 501 chars, FULL TEXT
 `https://www.scmp.com/rss/91/feed`
 
-**Sportstar** — 87 items, newest 0.1h ago, median body 164 chars, teaser
+**Sportstar** — 83 items, newest 0.2h ago, median body 166 chars, teaser
 `https://sportstar.thehindu.com/feeder/default.rss`
 
-**Straits Times** — 50 items, newest 0.1h ago, median body 227 chars, teaser
+**Straits Times** — 50 items, newest 0.7h ago, median body 233 chars, teaser
 `https://www.straitstimes.com/news/world/rss.xml`
 
-**TechCrunch** — 20 items, newest 0.2h ago, median body 149 chars, teaser
+**TechCrunch** — 20 items, newest 0.9h ago, median body 149 chars, teaser
 `https://techcrunch.com/feed/`
 
-**TechPP** — 10 items, newest 5.4h ago, median body 6437 chars, FULL TEXT
+**TechPP** — 10 items, newest 6.1h ago, median body 6437 chars, FULL TEXT
 `https://techpp.com/feed/`
 
-**The Atlantic** — 25 items, newest 0.2h ago, median body 8511 chars, FULL TEXT
+**The Atlantic** — 25 items, newest 0.9h ago, median body 8511 chars, FULL TEXT
 `https://www.theatlantic.com/feed/all/`
 
-**The Guardian India** — 20 items, newest 6.7h ago, median body 700 chars, FULL TEXT
+**The Guardian India** — 20 items, newest 7.4h ago, median body 700 chars, FULL TEXT
 `https://www.theguardian.com/world/india/rss`
 
-**The Guardian World** — 45 items, newest 0.1h ago, median body 630 chars, FULL TEXT
+**The Guardian World** — 45 items, newest 0.1h ago, median body 628 chars, FULL TEXT
 `https://www.theguardian.com/world/rss`
 
 **The Hill** — 100 items, newest 0.1h ago, median body 341 chars, teaser, redirected -> https://thehill.com/feed/?feed=partnerfeed-news-feed&format=rss
 `https://thehill.com/feed/`
 
-**The Hindu** — 60 items, newest 0.1h ago, median body 137 chars, teaser
+**The Hindu** — 60 items, newest 0.1h ago, median body 140 chars, teaser
 `https://www.thehindu.com/news/national/feeder/default.rss`
 
-**The Hindu (Top)** — 60 items, newest 0.1h ago, median body 119 chars, teaser
+**The Hindu (Top)** — 60 items, newest 0.1h ago, median body 121 chars, teaser
 `https://www.thehindu.com/feeder/default.rss`
 
-**The Hindu Health** — 60 items, newest 5.5h ago, median body 168 chars, teaser
+**The Hindu Health** — 60 items, newest 0.6h ago, median body 164 chars, teaser
 `https://www.thehindu.com/sci-tech/health/feeder/default.rss`
 
-**The Independent** — 73 items, newest 0.1h ago, median body 123 chars, teaser
+**The Independent** — 73 items, newest 0.5h ago, median body 123 chars, teaser
 `https://www.independent.co.uk/news/world/rss`
 
-**The Verge** — 10 items, newest 0.2h ago, median body 684 chars, FULL TEXT
+**The Verge** — 10 items, newest 0.3h ago, median body 685 chars, FULL TEXT
 `https://www.theverge.com/rss/index.xml`
 
-**Times of India** — 47 items, newest 0.3h ago, median body 344 chars, teaser
+**Times of India** — 47 items, newest 0.4h ago, median body 355 chars, teaser
 `https://timesofindia.indiatimes.com/rssfeedstopstories.cms`
 
-**Variety** — 10 items, newest 0.2h ago, median body 347 chars, teaser
+**Variety** — 10 items, newest 0.0h ago, median body 347 chars, teaser
 `https://variety.com/feed/`
 
-**Vox** — 10 items, newest 3.2h ago, median body 6217 chars, FULL TEXT
+**Vox** — 10 items, newest 3.9h ago, median body 6217 chars, FULL TEXT
 `https://www.vox.com/rss/index.xml`
 
-**Washington Post National** — 8 items, newest 4.2h ago, median body 144 chars, teaser
+**Washington Post National** — 8 items, newest 4.9h ago, median body 144 chars, teaser
 `https://feeds.washingtonpost.com/rss/national`
 
-**Washington Post World** — 11 items, newest 0.2h ago, median body 149 chars, teaser
+**Washington Post World** — 11 items, newest 0.9h ago, median body 149 chars, teaser
 `https://feeds.washingtonpost.com/rss/world`
 
-**Wired** — 50 items, newest 0.1h ago, median body 140 chars, teaser
+**Wired** — 50 items, newest 0.8h ago, median body 140 chars, teaser
 `https://www.wired.com/feed/rss`
 
 ## STALE (2)
 
-**Moneycontrol** — 15 items, newest 21005.0h ago, median body 161 chars, teaser
+**Moneycontrol** — 15 items, newest 21005.7h ago, median body 161 chars, teaser
 `https://www.moneycontrol.com/rss/latestnews.xml`
 
-**WHO News** — 25 items, newest 4843.1h ago, median body 3249 chars, FULL TEXT
+**WHO News** — 25 items, newest 4843.8h ago, median body 3249 chars, FULL TEXT
 `https://www.who.int/rss-feeds/news-english.xml`
 
 ## DEAD (4)
